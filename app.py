@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request
 import math
 
 app = Flask(__name__)
@@ -64,3 +64,4 @@ def calculate():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
