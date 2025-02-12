@@ -1,11 +1,11 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request
 from bridge_capacity import calculate_bridge_capacity
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="templates")  # Ensure Flask looks for the templates folder
 
 @app.route('/')
 def home():
-    return render_template("./index.html")  # Load the input page
+    return render_template("index.html")  # Load the input page
 
 @app.route('/calculate', methods=['POST'])
 def calculate():
@@ -36,4 +36,3 @@ def calculate():
 
 if __name__ == '__main__':
     app.run(debug=True)
-

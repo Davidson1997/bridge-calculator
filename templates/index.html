@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bridge Capacity Calculator</title>
+</head>
+<body>
+    <h1>Bridge Capacity Calculator</h1>
+    <form action="/calculate" method="post">
+        <label for="bridge_type">Bridge Type:</label>
+        <select name="bridge_type" required>
+            <option value="Simply Supported">Simply Supported</option>
+            <option value="Cantilever">Cantilever</option>
+        </select><br>
+
+        <label for="span_length">Span Length (m):</label>
+        <input type="number" step="0.1" name="span_length" required><br>
+
+        <label for="material">Material:</label>
+        <select name="material" required>
+            <option value="Steel">Steel</option>
+            <option value="Concrete">Concrete</option>
+            <option value="Composite">Composite</option>
+        </select><br>
+
+        <label for="beam_section">Beam Section:</label>
+        <input type="text" name="beam_section" required><br>
+
+        <label for="traffic">Traffic Load (kN):</label>
+        <input type="number" step="0.1" name="traffic" required><br>
+
+        <label for="wind">Wind Load (kN):</label>
+        <input type="number" step="0.1" name="wind" required><br>
+
+        <button type="submit">Calculate</button>
+    </form>
+
+    {% if result %}
+    <h2>Results:</h2>
+    <p>Moment Capacity: {{ result.moment_capacity_kNm }} kNm</p>
+    <p>Shear Capacity: {{ result.shear_capacity_kN }} kN</p>
+    <p>Status: <strong>{{ result.pass_fail }}</strong></p>
+    {% endif %}
+</body>
+</html>
