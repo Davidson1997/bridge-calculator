@@ -103,6 +103,14 @@
                     <option value="S275">S275</option>
                     <option value="S355">S355</option>
                 </select>
+                <label>Flange Width (mm):</label>
+                <input type="number" step="1" name="flange_width">
+                <label>Flange Thickness (mm):</label>
+                <input type="number" step="1" name="flange_thickness">
+                <label>Web Thickness (mm):</label>
+                <input type="number" step="1" name="web_thickness">
+                <label>Beam Depth (mm):</label>
+                <input type="number" step="1" name="beam_depth">
             </div>
 
             <div id="concrete-options" class="hidden">
@@ -111,22 +119,15 @@
                     <option value="C32/40">C32/40</option>
                     <option value="C40/50">C40/50</option>
                 </select>
+                <label>Beam Width (mm):</label>
+                <input type="number" step="1" name="beam_width">
+                <label>Effective Depth (mm):</label>
+                <input type="number" step="1" name="effective_depth">
                 <label>Rebar Size (mm):</label>
                 <input type="number" step="1" name="rebar_size">
                 <label>Rebar Spacing (mm):</label>
                 <input type="number" step="1" name="rebar_spacing">
             </div>
-
-            <div id="timber-options" class="hidden">
-                <label>Timber Grade:</label>
-                <select name="timber_grade">
-                    <option value="C24">C24</option>
-                    <option value="C30">C30</option>
-                </select>
-            </div>
-
-            <label>Beam Section (Width x Depth in mm):</label>
-            <input type="text" name="beam_section" placeholder="e.g., 300x500" required>
 
             <label>Loading Type:</label>
             <select name="loading_type" required>
@@ -139,17 +140,6 @@
 
             <button type="submit">Calculate</button>
         </form>
-
-        {% if result %}
-        <div class="result-box">
-            <h2>Calculation Results:</h2>
-            <p><strong>Moment Capacity:</strong> {{ result.moment_capacity_kNm }} kNm</p>
-            <p><strong>Shear Capacity:</strong> {{ result.shear_capacity_kN }} kN</p>
-            <p><strong>Applied Moment:</strong> {{ result.applied_moment_kNm }} kNm</p>
-            <p><strong>Applied Shear:</strong> {{ result.applied_shear_kN }} kN</p>
-            <p><strong>Status:</strong> <span style="color: {% if result.pass_fail == 'Pass' %}green{% else %}red{% endif %};">{{ result.pass_fail }}</span></p>
-        </div>
-        {% endif %}
     </div>
 </body>
 </html>
