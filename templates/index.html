@@ -15,20 +15,21 @@
         }
         .container {
             max-width: 800px;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             padding: 20px;
             margin: auto;
             border-radius: 10px;
             box-shadow: 0px 0px 15px rgba(255, 255, 255, 0.2);
         }
         h1 { color: #ffcc00; }
-        label { font-weight: bold; display: block; margin-top: 10px; }
+        label { font-weight: bold; display: block; margin-top: 10px; text-align: left; }
         input, select, button {
             margin: 5px; 
             padding: 10px; 
             width: 90%;
             border-radius: 5px;
             border: 1px solid #ccc;
+            font-size: 16px;
         }
         button {
             background-color: #ffcc00;
@@ -36,6 +37,7 @@
             font-size: 18px;
             font-weight: bold;
             cursor: pointer;
+            border: none;
         }
         button:hover {
             background-color: #ffaa00;
@@ -123,14 +125,14 @@
                 </select>
             </div>
 
-            <label>Beam Section:</label>
-            <input type="text" name="beam_section" required>
+            <label>Beam Section (Width x Depth in mm):</label>
+            <input type="text" name="beam_section" placeholder="e.g., 300x500" required>
 
-            <label>Traffic Load (kN):</label>
-            <input type="number" step="0.1" name="traffic" required>
-
-            <label>Wind Load (kN):</label>
-            <input type="number" step="0.1" name="wind" required>
+            <label>Loading Type:</label>
+            <select name="loading_type" required>
+                <option value="HA">HA Loading</option>
+                <option value="HB">HB Loading</option>
+            </select>
 
             <label>Member Condition Factor:</label>
             <input type="number" step="0.01" name="condition_factor" required>
@@ -143,6 +145,8 @@
             <h2>Calculation Results:</h2>
             <p><strong>Moment Capacity:</strong> {{ result.moment_capacity_kNm }} kNm</p>
             <p><strong>Shear Capacity:</strong> {{ result.shear_capacity_kN }} kN</p>
+            <p><strong>Applied Moment:</strong> {{ result.applied_moment_kNm }} kNm</p>
+            <p><strong>Applied Shear:</strong> {{ result.applied_shear_kN }} kN</p>
             <p><strong>Status:</strong> <span style="color: {% if result.pass_fail == 'Pass' %}green{% else %}red{% endif %};">{{ result.pass_fail }}</span></p>
         </div>
         {% endif %}
