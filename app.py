@@ -1,113 +1,67 @@
-from flask import Flask, render_template, request
+
+  from flask import Flask, render_template, request, jsonify
 import math
 
-app = Flask(__name__, template_folder="templates")
+app = Flask(__name__)
 
-# Material Properties (Eurocode Compliant)
-MATERIAL_PROPERTIES = {
-    "Steel": {
-        "S275": {"fy": 275, "E": 210e3},
-        "S355": {"fy": 355, "E": 210e3}
-    },
-    "Concrete": {
-        "C32/40": {"fck": 32, "E": 30e3},
-        "C40/50": {"fck": 40, "E": 33e3}
-    },
-    "Timber": {
-        "C24": {"fm": 24, "E": 11e3},
-        "C30": {"fm": 30, "E": 12e3}
-    }
-}
-
-# HA and HB Loading Factors (BS 5400 / BD 37/01)
-HA_LOADING = {
-    "udl": 30,  # kN/m
-    "kel": 120  # kN Knife Edge Load
-}
-HB_LOADING = {
-    "axle_load": 180,  # kN per axle
-    "spacing": 1.2  # Axle spacing in meters
-}
-
-def calculate_beam_capacity(material, grade, section, span, condition_factor, loading_type, rebar=None):
-    properties = MATERIAL_PROPERTIES[material][grade]
+def calculate_bridge_capacity(material, span_length, loading_type, flange_width, flange_thickness, web_thickness, beam_depth, beam_width, effective_depth, rebar_size, rebar_spacing, condition_factor):
+    results = {}
     
     if material == "Steel":
-        fy = properties["fy"]
-        Zx = (section["bf"] * section["tf"] * (section["h"] - section["tf"]) + (section["tw"] * (section["h"] - 2 * section["tf"]) ** 2) / 6)
-        moment_capacity = fy * Zx / 1.1  # Partial safety factor
-        shear_capacity = (fy * section["tw"] * section["h"]) / (math.sqrt(3) * 1.1)
+        fy = 275 if "S275" else 355  # Yield strength in MPa
+        Z_plastic = (flange_width * flange_thickness * (beam_depth - flange_thickness) + (web_thickness * (beam_depth - 2 * flange_thickness) ** 2) / 4) / 1e6  # Plastic modulus (m^3)
+        moment_capacity = fy * Z_plastic / condition_factor
+        shear_capacity = fy * web_thickness * beam_depth / (1.73 * condition_factor)  # Shear based on web thickness
     
     elif material == "Concrete":
-        fck = properties["fck"]
-        As = (math.pi * (rebar["size"] ** 2) / 4) * (1000 / rebar["spacing"])  # Reinforcement area
-        moment_capacity = (0.85 * fck * As * section["d"] * 0.9) / 1.5
-        shear_capacity = (0.6 * fck * section["bw"] * section["d"]) / 1.5
+        fck = 32 if "C32/40" else 40  # Concrete strength in MPa
+        fyk = 500  # Reinforcement steel strength
+        As = (1000 / rebar_spacing) * (math.pi * (rebar_size / 2) ** 2)  # Reinforcement area per m width
+        moment_capacity = 0.156 * fck * beam_width * effective_depth ** 2 / 1e6
+        shear_capacity = 0.6 * fck * beam_width * effective_depth / 1e3
     
-    elif material == "Timber":
-        fm = properties["fm"]
-        moment_capacity = (fm * section["b"] * section["h"] ** 2) / 6 * condition_factor
-        shear_capacity = (fm * section["b"] * section["h"]) / 3 * condition_factor
-    
-    # Apply HA or HB Loading
     if loading_type == "HA":
-        applied_moment = (HA_LOADING["udl"] * span ** 2) / 8 + (HA_LOADING["kel"] * span) / 4
-        applied_shear = (HA_LOADING["udl"] * span) / 2 + HA_LOADING["kel"]
-    else:  # HB Loading
-        applied_moment = (HB_LOADING["axle_load"] * span / HB_LOADING["spacing"]) * 0.9
-        applied_shear = HB_LOADING["axle_load"] * 0.8
+        applied_moment = 0.4 * span_length ** 2  # UDL applied load (BS 5400 UDL estimate)
+        applied_shear = 0.6 * span_length  # Approximate reaction
+    elif loading_type == "HB":
+        applied_moment = 0.6 * span_length ** 2  # HB vehicle with point loads
+        applied_shear = 0.8 * span_length
+    else:
+        applied_moment = 0
+        applied_shear = 0
     
-    # Check Pass/Fail
     pass_fail = "Pass" if moment_capacity > applied_moment and shear_capacity > applied_shear else "Fail"
     
-    return {
-        "moment_capacity_kNm": round(moment_capacity, 2),
-        "shear_capacity_kN": round(shear_capacity, 2),
-        "applied_moment_kNm": round(applied_moment, 2),
-        "applied_shear_kN": round(applied_shear, 2),
-        "pass_fail": pass_fail
-    }
+    results["moment_capacity_kNm"] = round(moment_capacity, 2)
+    results["shear_capacity_kN"] = round(shear_capacity, 2)
+    results["applied_moment_kNm"] = round(applied_moment, 2)
+    results["applied_shear_kN"] = round(applied_shear, 2)
+    results["pass_fail"] = pass_fail
+    
+    return results
 
-
-@app.route('/')
+@app.route("/")
 def home():
     return render_template("index.html")
 
-@app.route('/calculate', methods=['POST'])
+@app.route("/calculate", methods=["POST"])
 def calculate():
-    try:
-        data = request.form
-        material = data["material"]
-        grade = data.get("steel_grade") or data.get("concrete_grade") or data.get("timber_grade")
-        span_length = float(data["span_length"])
-        condition_factor = float(data["condition_factor"])
-        loading_type = data["loading_type"]
+    data = request.form
+    results = calculate_bridge_capacity(
+        data.get("material"),
+        float(data.get("span_length")),
+        data.get("loading_type"),
+        float(data.get("flange_width", 0)),
+        float(data.get("flange_thickness", 0)),
+        float(data.get("web_thickness", 0)),
+        float(data.get("beam_depth", 0)),
+        float(data.get("beam_width", 0)),
+        float(data.get("effective_depth", 0)),
+        float(data.get("rebar_size", 0)),
+        float(data.get("rebar_spacing", 0)),
+        float(data.get("condition_factor", 1))
+    )
+    return render_template("index.html", result=results)
 
-        section = {
-            "bf": float(data["flange_width"]),
-            "tf": float(data["flange_thickness"]),
-            "tw": float(data["web_thickness"]),
-            "h": float(data["beam_depth"])
-        } if material == "Steel" else {
-            "bw": float(data["beam_width"]),
-            "d": float(data["effective_depth"])
-        } if material == "Concrete" else {
-            "b": float(data["beam_width"]),
-            "h": float(data["beam_depth"])
-        }
-
-        rebar = None
-        if material == "Concrete":
-            rebar = {
-                "size": float(data["rebar_size"]),
-                "spacing": float(data["rebar_spacing"])
-            }
-
-        result = calculate_beam_capacity(material, grade, section, span_length, condition_factor, loading_type, rebar)
-        return render_template("index.html", result=result)
-    
-    except Exception as e:
-        return f"Error: {str(e)}", 400
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
