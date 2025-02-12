@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bridge Capacity Calculator</title>
+    <title>Advanced Bridge Capacity Calculator</title>
     <style>
         body { 
             font-family: Arial, sans-serif; 
@@ -14,9 +14,9 @@
             padding: 20px;
         }
         .container {
-            max-width: 800px;
-            background: rgba(0, 0, 0, 0.85);
-            padding: 20px;
+            max-width: 900px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 25px;
             margin: auto;
             border-radius: 10px;
             box-shadow: 0px 0px 15px rgba(255, 255, 255, 0.2);
@@ -45,7 +45,7 @@
         .result-box {
             margin-top: 20px;
             padding: 10px;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
             color: black;
             border-left: 5px solid #ffcc00;
             text-align: left;
@@ -78,13 +78,14 @@
 <body>
     <img src="company_logo.png" alt="Company Logo" class="logo">
     <div class="container">
-        <h1>Bridge Capacity Calculator</h1>
+        <h1>Advanced Bridge Capacity Calculator</h1>
         <p>Enter the required values below to calculate bridge capacities.</p>
         <form action="/calculate" method="post">
             <label>Bridge Type:</label>
             <select name="bridge_type" required>
                 <option value="Simply Supported">Simply Supported</option>
                 <option value="Cantilever">Cantilever</option>
+                <option value="Continuous">Continuous</option>
             </select>
 
             <label>Span Length (m):</label>
@@ -104,13 +105,13 @@
                     <option value="S355">S355</option>
                 </select>
                 <label>Flange Width (mm):</label>
-                <input type="number" step="1" name="flange_width">
+                <input type="number" step="1" name="flange_width" required>
                 <label>Flange Thickness (mm):</label>
-                <input type="number" step="1" name="flange_thickness">
+                <input type="number" step="1" name="flange_thickness" required>
                 <label>Web Thickness (mm):</label>
-                <input type="number" step="1" name="web_thickness">
+                <input type="number" step="1" name="web_thickness" required>
                 <label>Beam Depth (mm):</label>
-                <input type="number" step="1" name="beam_depth">
+                <input type="number" step="1" name="beam_depth" required>
             </div>
 
             <div id="concrete-options" class="hidden">
@@ -120,19 +121,20 @@
                     <option value="C40/50">C40/50</option>
                 </select>
                 <label>Beam Width (mm):</label>
-                <input type="number" step="1" name="beam_width">
+                <input type="number" step="1" name="beam_width" required>
                 <label>Effective Depth (mm):</label>
-                <input type="number" step="1" name="effective_depth">
+                <input type="number" step="1" name="effective_depth" required>
                 <label>Rebar Size (mm):</label>
-                <input type="number" step="1" name="rebar_size">
+                <input type="number" step="1" name="rebar_size" required>
                 <label>Rebar Spacing (mm):</label>
-                <input type="number" step="1" name="rebar_spacing">
+                <input type="number" step="1" name="rebar_spacing" required>
             </div>
 
             <label>Loading Type:</label>
             <select name="loading_type" required>
                 <option value="HA">HA Loading</option>
                 <option value="HB">HB Loading</option>
+                <option value="Special">Special Vehicle</option>
             </select>
 
             <label>Member Condition Factor:</label>
