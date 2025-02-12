@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request
 import math
 
 app = Flask(__name__, template_folder="templates")
@@ -98,8 +98,7 @@ def calculate():
         return render_template("index.html", result=result)
     
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error: {str(e)}", 400
 
 if __name__ == '__main__':
     app.run(debug=True)
-
