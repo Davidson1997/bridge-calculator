@@ -22,7 +22,7 @@ MATERIAL_PROPERTIES = {
 # HA and HB Loading Factors (BS 5400 / BD 37/01)
 HA_LOADING = {
     "udl": 30,  # kN/m
-    "kel_factor": 1.2  # Enhancement factor
+    "kel": 120  # kN Knife Edge Load
 }
 HB_LOADING = {
     "axle_load": 180,  # kN per axle
@@ -34,24 +34,25 @@ def calculate_beam_capacity(material, grade, section, span, condition_factor, lo
     
     if material == "Steel":
         fy = properties["fy"]
-        moment_capacity = (fy * section["depth"] * section["width"]**2) / 6  # Elastic capacity
-        shear_capacity = (fy * section["width"] * section["depth"]) / 3
+        Zx = (section["bf"] * section["tf"] * (section["h"] - section["tf"]) + (section["tw"] * (section["h"] - 2 * section["tf"]) ** 2) / 6)
+        moment_capacity = fy * Zx / 1.1  # Partial safety factor
+        shear_capacity = (fy * section["tw"] * section["h"]) / (math.sqrt(3) * 1.1)
     
     elif material == "Concrete":
         fck = properties["fck"]
         As = (math.pi * (rebar["size"] ** 2) / 4) * (1000 / rebar["spacing"])  # Reinforcement area
-        moment_capacity = (0.85 * fck * As * section["depth"] * 0.9) / 1.5
-        shear_capacity = (0.6 * fck * section["width"] * section["depth"]) / 1.5
+        moment_capacity = (0.85 * fck * As * section["d"] * 0.9) / 1.5
+        shear_capacity = (0.6 * fck * section["bw"] * section["d"]) / 1.5
     
     elif material == "Timber":
         fm = properties["fm"]
-        moment_capacity = (fm * section["width"] * section["depth"] ** 2) / 6 * condition_factor
-        shear_capacity = (fm * section["width"] * section["depth"]) / 3 * condition_factor
+        moment_capacity = (fm * section["b"] * section["h"] ** 2) / 6 * condition_factor
+        shear_capacity = (fm * section["b"] * section["h"]) / 3 * condition_factor
     
     # Apply HA or HB Loading
     if loading_type == "HA":
-        applied_moment = (HA_LOADING["udl"] * span ** 2) / 8 * HA_LOADING["kel_factor"]
-        applied_shear = (HA_LOADING["udl"] * span) / 2 * HA_LOADING["kel_factor"]
+        applied_moment = (HA_LOADING["udl"] * span ** 2) / 8 + (HA_LOADING["kel"] * span) / 4
+        applied_shear = (HA_LOADING["udl"] * span) / 2 + HA_LOADING["kel"]
     else:  # HB Loading
         applied_moment = (HB_LOADING["axle_load"] * span / HB_LOADING["spacing"]) * 0.9
         applied_shear = HB_LOADING["axle_load"] * 0.8
@@ -83,8 +84,16 @@ def calculate():
         loading_type = data["loading_type"]
 
         section = {
-            "width": float(data["beam_section"].split("x")[0]),
-            "depth": float(data["beam_section"].split("x")[1])
+            "bf": float(data["flange_width"]),
+            "tf": float(data["flange_thickness"]),
+            "tw": float(data["web_thickness"]),
+            "h": float(data["beam_depth"])
+        } if material == "Steel" else {
+            "bw": float(data["beam_width"]),
+            "d": float(data["effective_depth"])
+        } if material == "Concrete" else {
+            "b": float(data["beam_width"]),
+            "h": float(data["beam_depth"])
         }
 
         rebar = None
