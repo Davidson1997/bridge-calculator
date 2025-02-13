@@ -4,20 +4,14 @@ import math
 app = Flask(__name__)
 
 def get_float(value, default=0.0):
-    """Safely convert input to float, defaulting if missing or invalid."""
+    """Convert input to float safely, defaulting to 0.0 if empty or None."""
     try:
-        if value is None or value.strip() == "":
-            return default
-        return float(value)
+        return float(value.strip()) if value and isinstance(value, str) else default
     except ValueError:
         return default
 
-def calculate_bridge_capacity(
-    material, span_length, loading_type, flange_width, flange_thickness,
-    web_thickness, beam_depth, beam_width, effective_depth, rebar_size,
-    rebar_spacing, condition_factor, loads
-):
-    """Bridge capacity calculation with load handling."""
+def calculate_bridge_capacity(material, span_length, loading_type, steel_grade, concrete_grade, flange_width, flange_thickness, web_thickness, beam_depth, beam_width, effective_depth, condition_factor):
+    """Performs bridge capacity calculations for Steel and Concrete considering selected grades."""
     results = {}
     moment_capacity = 0
     shear_capacity = 0
@@ -26,47 +20,23 @@ def calculate_bridge_capacity(
 
     # Steel Calculation
     if material == "Steel":
-        fy = 275 if "S275" in material else 355
+        fy = 275 if steel_grade == "S275" else 355
         if flange_width > 0 and flange_thickness > 0 and web_thickness > 0 and beam_depth > 0:
-            Z_plastic = (
-                (flange_width * flange_thickness * (beam_depth - flange_thickness)) +
-                ((web_thickness * (beam_depth - 2 * flange_thickness) ** 2) / 4)
-            ) / 1e6  # Convert to m³
+            Z_plastic = (flange_width * flange_thickness * (beam_depth - flange_thickness) + (web_thickness * (beam_depth - 2 * flange_thickness) ** 2) / 4) / 1e6
             moment_capacity = fy * Z_plastic / condition_factor
             shear_capacity = fy * web_thickness * beam_depth / (1.73 * condition_factor)
 
     # Concrete Calculation
     elif material == "Concrete":
-        fck = 32 if "C32/40" in material else 40
-        fyk = 500
+        fck = 32 if concrete_grade == "C32/40" else 40
         if beam_width > 0 and effective_depth > 0:
-            As = (1000 / rebar_spacing) * (math.pi * (rebar_size / 2) ** 2) if rebar_spacing > 0 else 0
             moment_capacity = 0.156 * fck * beam_width * effective_depth ** 2 / 1e6
             shear_capacity = 0.6 * fck * beam_width * effective_depth / 1e3
 
-    # HA & HB Loading
-    if loading_type == "HA":
-        applied_moment = 0.4 * span_length ** 2
-        applied_shear = 0.6 * span_length
-    elif loading_type == "HB":
-        applied_moment = 0.6 * span_length ** 2
-        applied_shear = 0.8 * span_length
-
-    # Add additional dead/live loads
-    for load in loads:
-        load_value = load["value"]
-        if load["type"] == "dead":
-            applied_moment += load_value * span_length ** 2 / 8
-        elif load["type"] == "live":
-            applied_moment += load_value * span_length ** 2 / 12  # Adjusted factor for live loads
-
-    utilisation_ratio = applied_moment / moment_capacity if moment_capacity > 0 else 0
     pass_fail = "Pass" if moment_capacity > applied_moment and shear_capacity > applied_shear else "Fail"
 
     results["Moment Capacity (kNm)"] = round(moment_capacity, 2)
     results["Shear Capacity (kN)"] = round(shear_capacity, 2)
-    results["Applied Moment (ULS) (kNm)"] = round(applied_moment, 2)
-    results["Utilisation Ratio"] = round(utilisation_ratio, 3)
     results["Pass/Fail"] = pass_fail
 
     return results
@@ -78,42 +48,20 @@ def home():
 @app.route("/calculate", methods=["POST"])
 def calculate():
     data = request.form
-
-    # Debugging logs
-    print("\n🚀 Received Form Data:", dict(data))  # Convert to dict for better visibility
-    loads = []
-
-    # Capture additional loads
-    load_desc_list = data.getlist("load_desc[]")
-    load_value_list = data.getlist("load_value[]")
-    load_type_list = data.getlist("load_type[]")
-
-    if load_desc_list and load_value_list and load_type_list:
-        for desc, value, load_type in zip(load_desc_list, load_value_list, load_type_list):
-            if value.strip():  # Ensure it's not empty
-                loads.append({"description": desc, "value": get_float(value), "type": load_type})
-
-    print("\n🛠️ Processed Loads:", loads)  # Debugging: Print processed loads
-
-    # Perform the calculations
     results = calculate_bridge_capacity(
         data.get("material"),
         get_float(data.get("span_length")),
         data.get("loading_type"),
+        data.get("steel_grade"),
+        data.get("concrete_grade"),
         get_float(data.get("flange_width")),
         get_float(data.get("flange_thickness")),
         get_float(data.get("web_thickness")),
         get_float(data.get("beam_depth")),
         get_float(data.get("beam_width")),
         get_float(data.get("effective_depth")),
-        get_float(data.get("rebar_size")),
-        get_float(data.get("rebar_spacing")),
-        get_float(data.get("condition_factor"), 1.0),
-        loads  # Now properly passing dynamic loads
+        get_float(data.get("condition_factor"), 1.0)
     )
-
-    print("\n✅ Calculation Results:", results)  # Debugging: Print calculation results
-
     return render_template("index.html", result=results)
 
 if __name__ == "__main__":
