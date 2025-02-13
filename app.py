@@ -59,7 +59,8 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
     For HA loading:
       - Base UDL = 230*(1/span_length)^0.67  [kN/m]
       - Effective UDL = ((Base UDL × 0.76) / (3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor
-      - HA KEL = ((82 × 0.76) / (3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor   (82 kN is constant)
+      - HA KEL = ((82 × 0.76) / (3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor  
+        (82 kN is constant)
       
       Then:
           Applied Moment = (Effective UDL × L²)/8 + (HA KEL × L)/4
@@ -68,15 +69,13 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
     For HB loading, fixed values are used.
     """
     if loading_type == "HA":
-        # Calculate base UDL from span:
-        base_udl = 230 * (1 / span_length)**0.67  # kN/m; this will be ~43.7 kN/m for a span of 11.9 m
+        base_udl = 230 * (1 / span_length)**0.67  # kN/m; ~43.7 kN/m for a span of 11.9 m
         if loaded_width is None or loaded_width <= 0:
             loaded_width = 3.65  # default standard width
         if access_factor is None:
             access_factor = 1.3  # default to company access
         effective_udl = ((base_udl * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
 
-        # HA KEL is a constant 82 kN (base) scaled by the same factors:
         base_kel = 82  # kN constant
         kel = ((base_kel * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
 
@@ -116,6 +115,7 @@ def calculate_beam_capacity(form_data, loads):
     """
     Reads input parameters, calculates the beam's capacity (with effective length reductions),
     and computes the applied loads using the effective UDL and HA KEL formulas.
+    Also classifies the HA/HB load as an applied live load.
     """
     material = form_data.get("material")
     condition_factor = get_float(form_data.get("condition_factor"), 1.0)
@@ -127,7 +127,6 @@ def calculate_beam_capacity(form_data, loads):
     loaded_width = get_float(form_data.get("loaded_width"), 3.65)
     access_str = form_data.get("access_type", "Company")
     access_factor = 1.5 if access_str.lower() == "public" else 1.3
-    # (For HA, lane width is no longer used for the base value; HA KEL remains constant at 82 kN)
     
     # Capacity calculation based on material:
     if material == "Steel":
@@ -158,6 +157,10 @@ def calculate_beam_capacity(form_data, loads):
     utilisation_ratio = applied_moment / moment_capacity if moment_capacity > 0 else float('inf')
     pass_fail = "Pass" if moment_capacity >= applied_moment and shear_capacity >= applied_shear else "Fail"
 
+    # Classify HA/HB load as applied live load (dead load moment is zero)
+    applied_live_moment = round(applied_moment, 2)
+    applied_dead_moment = 0
+
     result = {
         "Span Length (m)": span_length,
         "Effective Member Length (m)": effective_member_length,
@@ -166,6 +169,8 @@ def calculate_beam_capacity(form_data, loads):
         "Shear Capacity (kN)": round(shear_capacity, 2),
         "Applied Moment (ULS) (kNm)": round(applied_moment, 2),
         "Applied Shear (ULS) (kN)": round(applied_shear, 2),
+        "Applied Live Load Moment (kNm)": applied_live_moment,
+        "Applied Dead Load Moment (kNm)": applied_dead_moment,
         "Utilisation Ratio": round(utilisation_ratio, 3) if utilisation_ratio != float('inf') else "N/A",
         "Pass/Fail": pass_fail,
         "Loading Type": loading_type,
@@ -183,7 +188,8 @@ def calculate_beam_capacity(form_data, loads):
 
 @app.route("/")
 def home():
-    return render_template("index.html")
+    # Pass an empty form_data dictionary if not provided
+    return render_template("index.html", form_data={})
 
 @app.route("/calculate", methods=["POST"])
 def calculate():
@@ -205,8 +211,8 @@ def calculate():
             })
     
     result = calculate_beam_capacity(form_data, additional_loads)
-    return render_template("index.html", result=result)
+    # Pass the form_data back so inputs remain populated.
+    return render_template("index.html", result=result, form_data=form_data)
 
 if __name__ == "__main__":
     app.run(debug=True)
-
