@@ -17,8 +17,6 @@ def calculate_bridge_capacity(material, steel_grade, concrete_grade, span_length
     shear_capacity = 0
     applied_moment = 0
     applied_shear = 0
-    udl = 0  # ✅ Ensure UDL is initialized to prevent UnboundLocalError
-    point_load = 0  # ✅ Initialize Point Load
 
     # Steel Calculation
     if material == "Steel":
@@ -45,7 +43,6 @@ def calculate_bridge_capacity(material, steel_grade, concrete_grade, span_length
         udl = 45
         point_load = 180
 
-    # ✅ Apply HA/HB Loads Correctly
     applied_moment += (udl * span_length ** 2) / 8  # UDL effect
     applied_moment += (point_load * span_length) / 4  # Point load effect
 
@@ -61,12 +58,11 @@ def calculate_bridge_capacity(material, steel_grade, concrete_grade, span_length
 
         if load_distribution == "udl":  # UDL (kN/m)
             applied_moment += (load_value * span_length ** 2) / 8
-            applied_shear += (load_value * span_length) / 2  # ✅ Added Shear effect for UDL
+            applied_shear += (load_value * span_length) / 2
             print(f"Added UDL: {load['description']} ({load_value} kN/m)")
-
         elif load_distribution == "point":  # Point Load (kN)
             applied_moment += (load_value * span_length) / 4
-            applied_shear += load_value / 2  # ✅ Added Shear effect for Point Load
+            applied_shear += load_value / 2
             print(f"Added Point Load: {load['description']} ({load_value} kN)")
 
     # Final Checks
@@ -84,7 +80,7 @@ def calculate_bridge_capacity(material, steel_grade, concrete_grade, span_length
     results["Moment Capacity (kNm)"] = round(moment_capacity, 2)
     results["Shear Capacity (kN)"] = round(shear_capacity, 2)
     results["Applied Moment (ULS) (kNm)"] = round(applied_moment, 2)
-    results["Applied Shear (ULS) (kN)"] = round(applied_shear, 2)  # ✅ Added Applied Shear Output
+    results["Applied Shear (ULS) (kN)"] = round(applied_shear, 2)
     results["Utilisation Ratio"] = round(utilisation_ratio, 3)
     results["Pass/Fail"] = pass_fail
 
