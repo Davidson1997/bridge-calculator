@@ -3,21 +3,32 @@ import math
 
 app = Flask(__name__)
 
+def get_float(value, default=0.0):
+    """Helper function to safely convert inputs to float."""
+    try:
+        return float(value) if value.strip() else default
+    except ValueError:
+        return default
+
 def calculate_bridge_capacity(material, span_length, loading_type, flange_width, flange_thickness, web_thickness, beam_depth, beam_width, effective_depth, rebar_size, rebar_spacing, condition_factor):
     results = {}
 
     if material == "Steel":
-        fy = 275 if "S275" else 355  # Yield strength in MPa
+        fy = 275 if "S275" in material else 355  # Yield strength in MPa
         Z_plastic = (flange_width * flange_thickness * (beam_depth - flange_thickness) + (web_thickness * (beam_depth - 2 * flange_thickness) ** 2) / 4) / 1e6  # Plastic modulus (m^3)
         moment_capacity = fy * Z_plastic / condition_factor
         shear_capacity = fy * web_thickness * beam_depth / (1.73 * condition_factor)  # Shear based on web thickness
 
     elif material == "Concrete":
-        fck = 32 if "C32/40" else 40  # Concrete strength in MPa
+        fck = 32 if "C32/40" in material else 40  # Concrete strength in MPa
         fyk = 500  # Reinforcement steel strength
         As = (1000 / rebar_spacing) * (math.pi * (rebar_size / 2) ** 2)  # Reinforcement area per m width
         moment_capacity = 0.156 * fck * beam_width * effective_depth ** 2 / 1e6
         shear_capacity = 0.6 * fck * beam_width * effective_depth / 1e3
+
+    else:
+        moment_capacity = 0
+        shear_capacity = 0
 
     if loading_type == "HA":
         applied_moment = 0.4 * span_length ** 2  # UDL applied load (BS 5400 UDL estimate)
@@ -46,22 +57,25 @@ def home():
 @app.route("/calculate", methods=["POST"])
 def calculate():
     data = request.form
+
     results = calculate_bridge_capacity(
         data.get("material"),
-        float(data.get("span_length")),
+        get_float(data.get("span_length")),
         data.get("loading_type"),
-        float(data.get("flange_width", 0)),
-        float(data.get("flange_thickness", 0)),
-        float(data.get("web_thickness", 0)),
-        float(data.get("beam_depth", 0)),
-        float(data.get("beam_width", 0)),
-        float(data.get("effective_depth", 0)),
-        float(data.get("rebar_size", 0)),
-        float(data.get("rebar_spacing", 0)),
-        float(data.get("condition_factor", 1))
+        get_float(data.get("flange_width")),
+        get_float(data.get("flange_thickness")),
+        get_float(data.get("web_thickness")),
+        get_float(data.get("beam_depth")),
+        get_float(data.get("beam_width")),
+        get_float(data.get("effective_depth")),
+        get_float(data.get("rebar_size")),
+        get_float(data.get("rebar_spacing")),
+        get_float(data.get("condition_factor"), 1.0)
     )
+
     return render_template("index.html", result=results)
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
