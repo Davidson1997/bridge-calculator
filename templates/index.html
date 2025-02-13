@@ -1,146 +1,200 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bridge Capacity Calculator</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style>
-        body { font-family: Arial, sans-serif; background-color: #e3f2fd; text-align: center; padding: 20px; }
-        .container { max-width: 800px; background: white; padding: 20px; margin: auto; border-radius: 10px; box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1); }
-        h1 { color: #007bff; }
-        label { font-weight: bold; display: block; margin-top: 10px; }
-        input, select, button { margin: 5px; padding: 8px; width: 90%; border-radius: 5px; border: 1px solid #ccc; }
-        button { background-color: #007bff; color: white; font-size: 16px; cursor: pointer; }
-        button:hover { background-color: #0056b3; }
-        .result-box { margin-top: 20px; padding: 10px; background: #e8f5e9; border-left: 5px solid #28a745; text-align: left; }
-        .hidden { display: none; }
-        table { width: 100%; margin-top: 10px; border-collapse: collapse; }
-        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
-        th { background-color: #007bff; color: white; }
-        .remove-btn { background-color: red; color: white; padding: 5px; border: none; cursor: pointer; }
-        .remove-btn:hover { background-color: darkred; }
-    </style>
-    <script>
-        function updateMaterialOptions() {
-            var material = document.getElementById("material").value;
-            document.getElementById("steel-options").classList.add("hidden");
-            document.getElementById("concrete-options").classList.add("hidden");
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bridge Capacity Calculator</title>
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <!-- Optional custom CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+    body { background-color: #e3f2fd; }
+    .container { margin-top: 30px; }
+    .remove-btn { background-color: red; color: white; border: none; }
+    .remove-btn:hover { background-color: darkred; }
+  </style>
+  <script>
+    // Toggle between steel and concrete input fields
+    function updateMaterialOptions() {
+      var material = document.getElementById("material").value;
+      document.getElementById("steel-options").classList.add("d-none");
+      document.getElementById("concrete-options").classList.add("d-none");
+      if (material === "Steel") {
+        document.getElementById("steel-options").classList.remove("d-none");
+      } else if (material === "Concrete") {
+        document.getElementById("concrete-options").classList.remove("d-none");
+      }
+    }
 
-            if (material === "Steel") {
-                document.getElementById("steel-options").classList.remove("hidden");
-            } else if (material === "Concrete") {
-                document.getElementById("concrete-options").classList.remove("hidden");
-            }
-        }
+    // Add a new row for an additional load
+    function addLoad() {
+      var table = document.getElementById("loadTable").getElementsByTagName('tbody')[0];
+      var row = table.insertRow();
+      row.innerHTML = `
+        <td><input type="text" class="form-control" name="load_desc[]" required></td>
+        <td><input type="number" step="0.1" class="form-control" name="load_value[]" required></td>
+        <td>
+          <select class="form-control" name="load_type[]">
+            <option value="dead">Dead Load</option>
+            <option value="live">Live Load</option>
+          </select>
+        </td>
+        <td>
+          <select class="form-control" name="load_distribution[]">
+            <option value="udl">UDL</option>
+            <option value="point">Point</option>
+          </select>
+        </td>
+        <td><button type="button" class="btn btn-danger remove-btn" onclick="removeLoad(this)">Remove</button></td>
+      `;
+    }
 
-        function addLoad() {
-            var table = document.getElementById("loadTable");
-            var row = table.insertRow(-1);
-            row.innerHTML = `
-                <td><input type="text" name="load_desc[]" required></td>
-                <td><input type="number" step="0.1" name="load_value[]" required></td>
-                <td>
-                    <select name="load_type[]">
-                        <option value="dead">Dead Load</option>
-                        <option value="live">Live Load</option>
-                    </select>
-                </td>
-                <td><button type="button" class="remove-btn" onclick="removeLoad(this)">Remove</button></td>
-            `;
-        }
-
-        function removeLoad(button) {
-            var row = button.parentNode.parentNode;
-            row.parentNode.removeChild(row);
-        }
-    </script>
+    // Remove an additional load row
+    function removeLoad(button) {
+      var row = button.parentNode.parentNode;
+      row.parentNode.removeChild(row);
+    }
+  </script>
 </head>
 <body>
-    <div class="container">
-        <h1>Bridge Capacity Calculator</h1>
+  <div class="container">
+    <!-- Main Form Card -->
+    <div class="card">
+      <div class="card-header bg-primary text-white">
+        <h2>Bridge Capacity Calculator</h2>
+      </div>
+      <div class="card-body">
         <form action="/calculate" method="post">
-            <label>Bridge Type:</label>
-            <select name="bridge_type" required>
-                <option value="Simply Supported">Simply Supported</option>
-                <option value="Cantilever">Cantilever</option>
+          <div class="form-group">
+            <label for="bridge_type">Bridge Type:</label>
+            <select class="form-control" name="bridge_type" id="bridge_type" required>
+              <option value="Simply Supported">Simply Supported</option>
+              <option value="Cantilever">Cantilever</option>
             </select>
-
-            <label>Span Length (m):</label>
-            <input type="number" step="0.1" name="span_length" required>
-
-            <label>Material:</label>
-            <select name="material" id="material" onchange="updateMaterialOptions()" required>
-                <option value="">-- Select Material --</option>
-                <option value="Steel">Steel</option>
-                <option value="Concrete">Concrete</option>
+          </div>
+          <div class="form-group">
+            <label for="span_length">Span Length (m):</label>
+            <input type="number" step="0.1" class="form-control" name="span_length" id="span_length" required>
+          </div>
+          <div class="form-group">
+            <label for="material">Material:</label>
+            <select class="form-control" name="material" id="material" onchange="updateMaterialOptions()" required>
+              <option value="">-- Select Material --</option>
+              <option value="Steel">Steel</option>
+              <option value="Concrete">Concrete</option>
             </select>
-
-            <div id="steel-options" class="hidden">
-                <label>Steel Grade:</label>
-                <select name="steel_grade">
-                    <option value="S275">S275</option>
-                    <option value="S355">S355</option>
-                </select>
-                
-                <label>Flange Width (mm):</label>
-                <input type="number" step="0.1" name="flange_width">
-
-                <label>Flange Thickness (mm):</label>
-                <input type="number" step="0.1" name="flange_thickness">
-
-                <label>Web Thickness (mm):</label>
-                <input type="number" step="0.1" name="web_thickness">
-
-                <label>Beam Depth (mm):</label>
-                <input type="number" step="0.1" name="beam_depth">
+          </div>
+          <!-- Steel Options -->
+          <div id="steel-options" class="d-none">
+            <div class="form-group">
+              <label for="steel_grade">Steel Grade:</label>
+              <select class="form-control" name="steel_grade" id="steel_grade">
+                <option value="S275">S275</option>
+                <option value="S355">S355</option>
+              </select>
             </div>
-
-            <div id="concrete-options" class="hidden">
-                <label>Concrete Grade:</label>
-                <select name="concrete_grade">
-                    <option value="C32/40">C32/40</option>
-                    <option value="C40/50">C40/50</option>
-                </select>
-
-                <label>Beam Width (mm):</label>
-                <input type="number" step="0.1" name="beam_width">
-
-                <label>Effective Depth (mm):</label>
-                <input type="number" step="0.1" name="effective_depth">
+            <div class="form-group">
+              <label for="flange_width">Flange Width (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="flange_width" id="flange_width">
             </div>
-
-            <label>Loading Type:</label>
-            <select name="loading_type" required>
-                <option value="HA Loading">HA Loading</option>
-                <option value="HB Loading">HB Loading</option>
+            <div class="form-group">
+              <label for="flange_thickness">Flange Thickness (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="flange_thickness" id="flange_thickness">
+            </div>
+            <div class="form-group">
+              <label for="web_thickness">Web Thickness (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="web_thickness" id="web_thickness">
+            </div>
+            <div class="form-group">
+              <label for="beam_depth">Beam Depth (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="beam_depth" id="beam_depth">
+            </div>
+          </div>
+          <!-- Concrete Options -->
+          <div id="concrete-options" class="d-none">
+            <div class="form-group">
+              <label for="concrete_grade">Concrete Grade:</label>
+              <select class="form-control" name="concrete_grade" id="concrete_grade">
+                <option value="C32/40">C32/40</option>
+                <option value="C40/50">C40/50</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="beam_width">Beam Width (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="beam_width" id="beam_width">
+            </div>
+            <div class="form-group">
+              <label for="effective_depth">Effective Depth (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="effective_depth" id="effective_depth">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="loading_type">Loading Type:</label>
+            <select class="form-control" name="loading_type" id="loading_type" required>
+              <option value="HA">HA Loading</option>
+              <option value="HB">HB Loading</option>
             </select>
-
-            <label>Member Condition Factor:</label>
-            <input type="number" step="0.01" name="condition_factor" required>
-
-            <h3>Additional Loads</h3>
-            <table id="loadTable">
-                <tr>
+          </div>
+          <div class="form-group">
+            <label for="condition_factor">Member Condition Factor:</label>
+            <input type="number" step="0.01" class="form-control" name="condition_factor" id="condition_factor" required>
+          </div>
+          
+          <!-- Additional Loads -->
+          <div class="card mt-4">
+            <div class="card-header">
+              <h4>Additional Loads</h4>
+            </div>
+            <div class="card-body">
+              <table class="table table-bordered" id="loadTable">
+                <thead>
+                  <tr>
                     <th>Description</th>
                     <th>Value (kN)</th>
                     <th>Type</th>
+                    <th>Distribution</th>
                     <th>Action</th>
-                </tr>
-            </table>
-            <button type="button" onclick="addLoad()">+ Add Load</button>
-
-            <button type="submit">Calculate</button>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Rows added dynamically -->
+                </tbody>
+              </table>
+              <button type="button" class="btn btn-secondary" onclick="addLoad()">+ Add Load</button>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block mt-4">Calculate</button>
         </form>
-
-        {% if result %}
-        <div class="result-box">
-            <h2>Calculation Results:</h2>
-            {% for key, value in result.items() %}
-            <p><strong>{{ key }}:</strong> {{ value }}</p>
-            {% endfor %}
-        </div>
-        {% endif %}
+      </div>
     </div>
+
+    {% if result %}
+    <!-- Results Card -->
+    <div class="card">
+      <div class="card-header bg-success text-white">
+        <h3>Calculation Results</h3>
+      </div>
+      <div class="card-body">
+        <table class="table table-striped">
+          <tbody>
+            {% for key, value in result.items() %}
+            <tr>
+              <th>{{ key }}</th>
+              <td>{{ value }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Bootstrap JS and dependencies -->
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>
+
