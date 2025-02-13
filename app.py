@@ -35,24 +35,33 @@ def calculate_bridge_capacity(material, steel_grade, concrete_grade, span_length
             moment_capacity = 0.156 * fck * beam_width * effective_depth ** 2 / 1e6
             shear_capacity = 0.6 * fck * beam_width * effective_depth / 1e3
 
-    # HA & HB Loading
+    # Apply HA & HB Loading (FIXED)
     if loading_type == "HA":
-        applied_moment = 0.4 * span_length ** 2
-        applied_shear = 0.6 * span_length
+        udl = 30  # Example UDL from BD 21/01 (kN/m)
+        point_load = 120  # Example knife-edge load (kN)
     elif loading_type == "HB":
-        applied_moment = 0.6 * span_length ** 2
-        applied_shear = 0.8 * span_length
+        udl = 45
+        point_load = 180
 
-    # Process Additional Loads
+    applied_moment += (udl * span_length ** 2) / 8  # UDL effect
+    applied_moment += (point_load * span_length) / 4  # Point load effect
+
+    applied_shear += (udl * span_length) / 2  # Shear effect
+    applied_shear += point_load / 2  # Shear from point load
+
+    # Process Additional Loads (FIXED to Include UDL & Point Load)
     print("--- DEBUG: Processing Additional Loads ---")
     for load in loads:
         load_value = load["value"]
-        if load["type"] == "dead":
-            applied_moment += load_value * span_length ** 2 / 8
-            print(f"Added Dead Load: {load['description']} ({load_value} kN)")
-        elif load["type"] == "live":
-            applied_moment += load_value * span_length ** 2 / 12  # Adjusted factor for live loads
-            print(f"Added Live Load: {load['description']} ({load_value} kN)")
+        load_type = load["type"]
+        load_distribution = load["distribution"]
+
+        if load_distribution == "udl":  # UDL (kN/m)
+            applied_moment += (load_value * span_length ** 2) / 8
+            print(f"Added UDL: {load['description']} ({load_value} kN/m)")
+        elif load_distribution == "point":  # Point Load (kN)
+            applied_moment += (load_value * span_length) / 4
+            print(f"Added Point Load: {load['description']} ({load_value} kN)")
 
     # Final Checks
     utilisation_ratio = applied_moment / moment_capacity if moment_capacity > 0 else 0
@@ -84,11 +93,12 @@ def calculate():
     load_desc_list = data.getlist("load_desc[]")
     load_value_list = data.getlist("load_value[]")
     load_type_list = data.getlist("load_type[]")
+    load_distribution_list = data.getlist("load_distribution[]")
 
-    if load_desc_list and load_value_list and load_type_list:
-        for desc, value, load_type in zip(load_desc_list, load_value_list, load_type_list):
+    if load_desc_list and load_value_list and load_type_list and load_distribution_list:
+        for desc, value, load_type, distribution in zip(load_desc_list, load_value_list, load_type_list, load_distribution_list):
             if value.strip():
-                loads.append({"description": desc, "value": get_float(value), "type": load_type})
+                loads.append({"description": desc, "value": get_float(value), "type": load_type, "distribution": distribution})
 
     print("--- DEBUG: Received Loads ---")
     print(loads)  # Debugging print
