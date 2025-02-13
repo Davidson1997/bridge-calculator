@@ -58,6 +58,8 @@ def calculate():
         get_float(data.get("beam_width")),
         get_float(data.get("effective_depth")),
         get_float(data.get("condition_factor"))
+	print(results)  # Debugging - Check if the function outputs correct values
+
     )
     return render_template("index.html", result=results)
 
