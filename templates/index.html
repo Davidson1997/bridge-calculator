@@ -202,78 +202,101 @@
     </div>
 
     {% if result %}
-    <!-- Results Card -->
-    <div class="card mt-4">
-      <div class="card-header bg-success text-white">
-        <h3>Calculation Results</h3>
-      </div>
-      <div class="card-body">
-        <table class="table table-striped">
-          <tbody>
-            {% for key, value in result.items() %}
+      <!-- Summary Table -->
+      <div class="card mt-4">
+        <div class="card-header bg-warning text-white">
+          <h3>Summary</h3>
+        </div>
+        <div class="card-body">
+          <table class="table table-bordered">
             <tr>
-              <th>{{ key }}</th>
-              <td>{{ value }}</td>
+              <th>Beam Moment Capacity (kNm)</th>
+              <td>{{ result["Moment Capacity (kNm)"] }}</td>
             </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+            <tr>
+              <th>Applied Dead Load Moment (kNm)</th>
+              <td>{{ result["Applied Dead Load Moment (kNm)"] }}</td>
+            </tr>
+            <tr>
+              <th>Applied Live Load Moment (kNm)</th>
+              <td>{{ result["Applied Live Load Moment (kNm)"] }}</td>
+            </tr>
+          </table>
+        </div>
       </div>
-    </div>
 
-    <!-- Bridge Diagram (SVG) -->
-    <div class="card mt-4">
-      <div class="card-header bg-info text-white">
-        <h4>Bridge Diagram</h4>
+      <!-- Calculation Results Card -->
+      <div class="card mt-4">
+        <div class="card-header bg-success text-white">
+          <h3>Calculation Results</h3>
+        </div>
+        <div class="card-body">
+          <table class="table table-striped">
+            <tbody>
+              {% for key, value in result.items() %}
+              <tr>
+                <th>{{ key }}</th>
+                <td>{{ value }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div class="card-body">
-        <svg id="bridgeDiagram" width="750" height="300" xmlns="http://www.w3.org/2000/svg">
-          {% set scale = 20 %}
-          {% set beamLengthPx = result['Span Length (m)'] * scale %}
-          <!-- Draw beam -->
-          <line x1="50" y1="150" x2="{{ 50 + beamLengthPx }}" y2="150" stroke="black" stroke-width="4" />
-          <!-- Draw supports -->
-          <polygon points="40,150 50,140 50,160" fill="black" />
-          <polygon points="{{ 50 + beamLengthPx }},150 {{ 50 + beamLengthPx - 10 }},140 {{ 50 + beamLengthPx - 10 }},160" fill="black" />
-          <!-- Arrowhead definition -->
-          <defs>
-            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
-              <polygon points="0 0, 10 3.5, 0 7" fill="black"/>
-            </marker>
-          </defs>
-          <!-- Default UDL arrow (red) above beam -->
-          <line x1="50" y1="120" x2="{{ 50 + beamLengthPx }}" y2="120" stroke="red" stroke-width="2" marker-end="url(#arrowhead)"/>
-          <text x="{{ 50 + beamLengthPx/2 }}" y="110" text-anchor="middle" fill="red" font-size="12">
-            Default UDL ({{ result['Loading Type'] }}): 
-            {% if result['Loading Type'] in ['HA', 'HB'] %}
-              {{ result[result['Loading Type'] ~ " UDL (kN/m)"] }} kN/m
-            {% endif %}
-          </text>
-          <!-- Default point load arrow (blue) at mid-span -->
-          {% set midSpan = 50 + beamLengthPx/2 %}
-          <line x1="{{ midSpan }}" y1="150" x2="{{ midSpan }}" y2="50" stroke="blue" stroke-width="2" marker-end="url(#arrowhead)"/>
-          <text x="{{ midSpan + 10 }}" y="45" fill="blue" font-size="12">Point Load</text>
-          <!-- Effective length info -->
-          <text x="50" y="280" fill="black" font-size="14">
-            Effective Member Length: {{ result['Effective Member Length (m)'] }} m, Reduction Factor: {{ result['Reduction Factor'] }}
-          </text>
-          <!-- Additional loads (if any) -->
-          {% if result['Additional Loads'] %}
-            {% set num_loads = result['Additional Loads']|length %}
-            {% for load in result['Additional Loads'] %}
-              {% set pos = 50 + (loop.index0 + 1) * beamLengthPx / (num_loads + 1) %}
-              {% if load.distribution == 'udl' %}
-                <line x1="{{ pos }}" y1="120" x2="{{ pos }}" y2="100" stroke="red" stroke-width="2" marker-end="url(#arrowhead)"/>
-                <text x="{{ pos }}" y="90" fill="red" font-size="12" text-anchor="middle">{{ load.value }} kN/m</text>
-              {% else %}
-                <line x1="{{ pos }}" y1="150" x2="{{ pos }}" y2="70" stroke="blue" stroke-width="2" marker-end="url(#arrowhead)"/>
-                <text x="{{ pos }}" y="60" fill="blue" font-size="12" text-anchor="middle">{{ load.value }} kN</text>
+
+      <!-- Bridge Diagram (SVG) -->
+      <div class="card mt-4">
+        <div class="card-header bg-info text-white">
+          <h4>Bridge Diagram</h4>
+        </div>
+        <div class="card-body">
+          <svg id="bridgeDiagram" width="750" height="300" xmlns="http://www.w3.org/2000/svg">
+            {% set scale = 20 %}
+            {% set beamLengthPx = result['Span Length (m)'] * scale %}
+            <!-- Draw beam -->
+            <line x1="50" y1="150" x2="{{ 50 + beamLengthPx }}" y2="150" stroke="black" stroke-width="4" />
+            <!-- Draw supports -->
+            <polygon points="40,150 50,140 50,160" fill="black" />
+            <polygon points="{{ 50 + beamLengthPx }},150 {{ 50 + beamLengthPx - 10 }},140 {{ 50 + beamLengthPx - 10 }},160" fill="black" />
+            <!-- Arrowhead definition -->
+            <defs>
+              <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" fill="black"/>
+              </marker>
+            </defs>
+            <!-- Default UDL arrow (red) above beam -->
+            <line x1="50" y1="120" x2="{{ 50 + beamLengthPx }}" y2="120" stroke="red" stroke-width="2" marker-end="url(#arrowhead)"/>
+            <text x="{{ 50 + beamLengthPx/2 }}" y="110" text-anchor="middle" fill="red" font-size="12">
+              Default UDL ({{ result['Loading Type'] }}): 
+              {% if result['Loading Type'] in ['HA', 'HB'] %}
+                {{ result[result['Loading Type'] ~ " UDL (kN/m)"] }} kN/m
               {% endif %}
-            {% endfor %}
-          {% endif %}
-        </svg>
+            </text>
+            <!-- Default point load arrow (blue) at mid-span -->
+            {% set midSpan = 50 + beamLengthPx/2 %}
+            <line x1="{{ midSpan }}" y1="150" x2="{{ midSpan }}" y2="50" stroke="blue" stroke-width="2" marker-end="url(#arrowhead)"/>
+            <text x="{{ midSpan + 10 }}" y="45" fill="blue" font-size="12">Point Load</text>
+            <!-- Effective length info -->
+            <text x="50" y="280" fill="black" font-size="14">
+              Effective Member Length: {{ result['Effective Member Length (m)'] }} m, Reduction Factor: {{ result['Reduction Factor'] }}
+            </text>
+            <!-- Additional loads (if any) -->
+            {% if result['Additional Loads'] %}
+              {% set num_loads = result['Additional Loads']|length %}
+              {% for load in result['Additional Loads'] %}
+                {% set pos = 50 + (loop.index0 + 1) * beamLengthPx / (num_loads + 1) %}
+                {% if load.distribution == 'udl' %}
+                  <line x1="{{ pos }}" y1="120" x2="{{ pos }}" y2="100" stroke="red" stroke-width="2" marker-end="url(#arrowhead)"/>
+                  <text x="{{ pos }}" y="90" fill="red" font-size="12" text-anchor="middle">{{ load.value }} kN/m</text>
+                {% else %}
+                  <line x1="{{ pos }}" y1="150" x2="{{ pos }}" y2="70" stroke="blue" stroke-width="2" marker-end="url(#arrowhead)"/>
+                  <text x="{{ pos }}" y="60" fill="blue" font-size="12" text-anchor="middle">{{ load.value }} kN</text>
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+          </svg>
+        </div>
       </div>
-    </div>
     {% endif %}
   </div>
 
