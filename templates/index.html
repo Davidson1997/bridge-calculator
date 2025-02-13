@@ -6,7 +6,6 @@
   <title>Bridge Capacity Calculator</title>
   <!-- Bootstrap CSS -->
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-  <!-- Optional custom CSS -->
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <style>
     body { background-color: #e3f2fd; }
@@ -26,17 +25,15 @@
         document.getElementById("concrete-options").classList.remove("d-none");
       }
     }
-
-    // Toggle lane width field based on loading type
+    // Toggle loaded carriageway inputs based on loading type (HA/HB)
     function updateLoadingTypeOptions() {
       var loadingType = document.getElementById("loading_type").value;
-      if (loadingType === "HA") {
-        document.getElementById("lane-width-group").style.display = "block";
+      if (loadingType === "HA" || loadingType === "HB") {
+        document.getElementById("loaded-access-group").style.display = "block";
       } else {
-        document.getElementById("lane-width-group").style.display = "none";
+        document.getElementById("loaded-access-group").style.display = "none";
       }
     }
-
     // Add a new row for an additional load
     function addLoad() {
       var table = document.getElementById("loadTable").getElementsByTagName('tbody')[0];
@@ -59,13 +56,11 @@
         <td><button type="button" class="btn btn-danger remove-btn" onclick="removeLoad(this)">Remove</button></td>
       `;
     }
-
     // Remove an additional load row
     function removeLoad(button) {
       var row = button.parentNode.parentNode;
       row.parentNode.removeChild(row);
     }
-
     window.onload = function() {
       updateMaterialOptions();
       updateLoadingTypeOptions();
@@ -74,7 +69,6 @@
 </head>
 <body>
   <div class="container">
-    <!-- Main Form Card -->
     <div class="card">
       <div class="card-header bg-primary text-white">
         <h2>Bridge Capacity Calculator</h2>
@@ -155,10 +149,24 @@
               <option value="HB">HB Loading</option>
             </select>
           </div>
-          <!-- Lane Width for HA Loading -->
-          <div class="form-group" id="lane-width-group" style="display:none;">
+          <!-- For HA/HB loading, new inputs -->
+          <div id="loaded-access-group">
+            <div class="form-group">
+              <label for="loaded_width">Loaded Carriageway Width (m):</label>
+              <input type="number" step="0.1" class="form-control" name="loaded_width" id="loaded_width" placeholder="e.g., 7.3">
+            </div>
+            <div class="form-group">
+              <label for="access_type">Access Type:</label>
+              <select class="form-control" name="access_type" id="access_type">
+                <option value="Company">Company (×1.3)</option>
+                <option value="Public">Public (×1.5)</option>
+              </select>
+            </div>
+          </div>
+          <!-- For HA loading, lane width (used for HA KEL calculation) -->
+          <div class="form-group" id="lane-width-group">
             <label for="lane_width">Lane Width (m):</label>
-            <input type="number" step="0.1" class="form-control" name="lane_width" id="lane_width" placeholder="e.g., 3.5">
+            <input type="number" step="0.1" class="form-control" name="lane_width" id="lane_width" placeholder="e.g., 3.65">
           </div>
           <div class="form-group">
             <label for="condition_factor">Member Condition Factor:</label>
@@ -222,7 +230,7 @@
         <svg id="bridgeDiagram" width="750" height="300" xmlns="http://www.w3.org/2000/svg">
           {% set scale = 20 %}
           {% set beamLengthPx = result['Span Length (m)'] * scale %}
-          <!-- Draw beam (horizontal line) -->
+          <!-- Draw beam -->
           <line x1="50" y1="150" x2="{{ 50 + beamLengthPx }}" y2="150" stroke="black" stroke-width="4" />
           <!-- Draw supports -->
           <polygon points="40,150 50,140 50,160" fill="black" />
@@ -236,13 +244,16 @@
           <!-- Default UDL arrow (red) above beam -->
           <line x1="50" y1="120" x2="{{ 50 + beamLengthPx }}" y2="120" stroke="red" stroke-width="2" marker-end="url(#arrowhead)"/>
           <text x="{{ 50 + beamLengthPx/2 }}" y="110" text-anchor="middle" fill="red" font-size="12">
-            Default UDL ({{ result.loading_type == 'HA' and result['HA UDL (kN/m)'] or result['HB UDL (kN/m)'] }} kN/m)
+            Default UDL ({{ result['Loading Type'] }}): 
+            {% if result['Loading Type'] in ['HA', 'HB'] %}
+              {{ result[result['Loading Type'] ~ " UDL (kN/m)"] }} kN/m
+            {% endif %}
           </text>
           <!-- Default point load arrow (blue) at mid-span -->
           {% set midSpan = 50 + beamLengthPx/2 %}
           <line x1="{{ midSpan }}" y1="150" x2="{{ midSpan }}" y2="50" stroke="blue" stroke-width="2" marker-end="url(#arrowhead)"/>
           <text x="{{ midSpan + 10 }}" y="45" fill="blue" font-size="12">Point Load</text>
-          <!-- Effective length and reduction factor info -->
+          <!-- Effective length info -->
           <text x="50" y="280" fill="black" font-size="14">
             Effective Member Length: {{ result['Effective Member Length (m)'] }} m, Reduction Factor: {{ result['Reduction Factor'] }}
           </text>
