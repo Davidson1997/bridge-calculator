@@ -84,6 +84,8 @@ def calculate():
             if value.strip():
                 loads.append({"description": desc, "value": get_float(value), "type": load_type})
 
+	print("Received loads:", loads)  # Debugging line
+
     results = calculate_bridge_capacity(
         data.get("material"),
         data.get("steel_grade"),
