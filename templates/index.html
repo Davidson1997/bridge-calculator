@@ -59,6 +59,30 @@
                 document.getElementById("concrete-options").classList.remove("hidden");
             }
         }
+
+        function addLoad() {
+            let table = document.getElementById("loadsTable").getElementsByTagName('tbody')[0];
+            let row = table.insertRow();
+            
+            let descCell = row.insertCell(0);
+            let loadCell = row.insertCell(1);
+            let typeCell = row.insertCell(2);
+            let deleteCell = row.insertCell(3);
+
+            descCell.innerHTML = '<input type="text" name="load_desc[]" required>';
+            loadCell.innerHTML = '<input type="number" step="0.1" name="load_value[]" required>';
+            typeCell.innerHTML = `<select name="load_type[]">
+                <option value="dead">Dead</option>
+                <option value="live">Live</option>
+            </select>`;
+
+            deleteCell.innerHTML = '<button type="button" onclick="removeLoad(this)">X</button>';
+        }
+
+        function removeLoad(btn) {
+            let row = btn.parentNode.parentNode;
+            row.parentNode.removeChild(row);
+        }
     </script>
 </head>
 <body>
@@ -113,26 +137,22 @@
             <label>Member Condition Factor:</label>
             <input type="number" step="0.01" name="condition_factor" required>
 
+            <h3>Additional Loads</h3>
+            <table id="loadsTable">
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th>Load (kN/m)</th>
+                        <th>Type</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <button type="button" onclick="addLoad()">Add Load</button>
             <button type="submit">Calculate</button>
         </form>
-
-        {% if result %}
-        <div class="result-box">
-            <h2>Calculation Results:</h2>
-            <p><strong>Moment Capacity:</strong> {{ result.moment_capacity_kNm }} kNm</p>
-            <p><strong>Shear Capacity:</strong> {{ result.shear_capacity_kN }} kN</p>
-            <p><strong>Status:</strong> <span style="color: {% if result.pass_fail == 'Pass' %}green{% else %}red{% endif %};">{{ result.pass_fail }}</span></p>
-            <h3>Calculation Breakdown:</h3>
-            <p>Capacity calculations are performed per Eurocode guidelines:</p>
-            <ul>
-                <li>Steel: EN 1993-1-1</li>
-                <li>Concrete: EN 1992-1-1</li>
-                <li>Timber: EN 1995-1-1</li>
-            </ul>
-            <p>HA Loading and KEL checks are implemented following BD 37/01 requirements.</p>
-        </div>
-        {% endif %}
     </div>
 </body>
 </html>
-
