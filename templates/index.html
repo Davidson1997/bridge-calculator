@@ -76,8 +76,8 @@
       </div>
       <div class="card-body">
         <form action="/calculate" method="post">
-          <!-- [Your existing form fields remain unchanged] -->
-          <!-- ... -->
+          <!-- [All your existing form fields remain unchanged] -->
+          <!-- Bridge Type, Span, Effective Member Length, Material, Steel/Concrete options, Loading Type, etc. -->
           <!-- For HA/HB loading -->
           <div id="loaded-access-group">
             <div class="form-group">
@@ -131,7 +131,7 @@
     </div>
 
     {% if result %}
-      <!-- Summary Table -->
+      <!-- Summary Table: Highlighting Main Results -->
       <div class="card mt-4">
         <div class="card-header bg-warning text-white">
           <h3>Summary</h3>
@@ -143,18 +143,18 @@
               <td>{{ result["Moment Capacity (kNm)"] }}</td>
             </tr>
             <tr>
-              <th>Applied Dead Load Moment (kNm)</th>
-              <td>{{ result["Applied Dead Load Moment (kNm)"] }}</td>
-            </tr>
-            <tr>
               <th>Applied Live Load Moment (kNm)</th>
               <td>{{ result["Applied Live Load Moment (kNm)"] }}</td>
+            </tr>
+            <tr>
+              <th>Applied Dead Load Moment (kNm)</th>
+              <td>{{ result["Applied Dead Load Moment (kNm)"] }}</td>
             </tr>
           </table>
         </div>
       </div>
 
-      <!-- Toggle for Detailed Results -->
+      <!-- Detailed Results (Collapsible) -->
       <button class="btn btn-secondary mt-3" type="button" data-toggle="collapse" data-target="#detailedResults" aria-expanded="false" aria-controls="detailedResults">
         Show Detailed Results
       </button>
@@ -163,8 +163,8 @@
           <pre>{{ result|tojson(indent=2) }}</pre>
         </div>
       </div>
-      
-      <!-- Existing Detailed Results Card (optional) -->
+
+      <!-- Full Results Table -->
       <div class="card mt-4">
         <div class="card-header bg-success text-white">
           <h3>Calculation Results</h3>
@@ -172,7 +172,7 @@
         <div class="card-body">
           <table class="table table-striped">
             <tbody>
-              {% for key, value in result.items() if key not in ["Applied Dead Load Moment (kNm)", "Applied Live Load Moment (kNm)", "Moment Capacity (kNm)"] %}
+              {% for key, value in result.items() if key not in ["Applied Live Load Moment (kNm)", "Applied Dead Load Moment (kNm)", "Moment Capacity (kNm)"] %}
               <tr>
                 <th>{{ key }}</th>
                 <td>{{ value }}</td>

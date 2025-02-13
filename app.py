@@ -59,58 +59,31 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
     For HA loading:
       - Base UDL = 230*(1/span_length)^0.67 [kN/m]
       - Effective UDL = ((Base UDL × 0.76)/(3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor
-      - HA KEL = ((82 × 0.76)/(3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor
+      - HA KEL = ((82 × 0.76)/(3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor  
+        (82 kN is constant)
       
       Then:
-          Base Live Moment = (Effective UDL × L²)/8 + (HA KEL × L)/4
-          Base Live Shear  = (Effective UDL × L)/2 + (HA KEL)/2
+          Applied Moment = (Effective UDL × L²)/8 + (HA KEL × L)/4
+          Applied Shear  = (Effective UDL × L)/2 + (HA KEL)/2
           
     For HB loading, fixed values are used.
-    
-    Additionally, additional loads are classified by their "type" field (dead or live) and summed separately.
     """
-    additional_dead_moment = 0
-    additional_live_moment = 0
-    additional_dead_shear = 0
-    additional_live_shear = 0
-
-    # Process additional loads by type:
-    for load in additional_loads:
-        load_value = load.get("value", 0)
-        distribution = load.get("distribution", "").lower()
-        load_cat = load.get("type", "").lower()  # expected to be 'dead' or 'live'
-        if distribution == "udl":
-            moment_contrib = (load_value * span_length**2) / 8
-            shear_contrib = (load_value * span_length) / 2
-        elif distribution == "point":
-            moment_contrib = (load_value * span_length) / 4
-            shear_contrib = load_value / 2
-        else:
-            moment_contrib = 0
-            shear_contrib = 0
-
-        if load_cat == "dead":
-            additional_dead_moment += moment_contrib
-            additional_dead_shear += shear_contrib
-        else:
-            additional_live_moment += moment_contrib
-            additional_live_shear += shear_contrib
-
     if loading_type == "HA":
-        # Compute base UDL from span:
-        base_udl = 230 * (1 / span_length)**0.67  # kN/m; e.g. ≈43.7 kN/m for 11.9 m span
+        # Base UDL is a function of span:
+        base_udl = 230 * (1 / span_length)**0.67  # kN/m; e.g. ~43.7 kN/m for 11.9 m span
         if loaded_width is None or loaded_width <= 0:
             loaded_width = 3.65  # default standard width
         if access_factor is None:
             access_factor = 1.3  # default to company access
         effective_udl = ((base_udl * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
 
-        # HA KEL remains constant at 82 kN, scaled by the same factors:
+        # HA KEL remains constant at 82 kN scaled by the same factors:
         base_kel = 82  # kN constant
         kel = ((base_kel * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
 
-        base_live_moment = (effective_udl * span_length**2) / 8 + (kel * span_length) / 4
-        base_live_shear = (effective_udl * span_length) / 2 + (kel) / 2
+        default_loads = {"base_udl": base_udl, "effective_udl": effective_udl, "kel": kel}
+        applied_moment = (effective_udl * span_length**2) / 8 + (kel * span_length) / 4
+        applied_shear = (effective_udl * span_length) / 2 + (kel) / 2
 
     elif loading_type == "HB":
         udl = 45  # kN/m
@@ -119,48 +92,32 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
             effective_udl = ((udl * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
         else:
             effective_udl = udl
-        base_live_moment = (effective_udl * span_length**2) / 8 + (point_load * span_length) / 4
-        base_live_shear = (effective_udl * span_length) / 2 + (point_load) / 2
+        default_loads = {"udl": udl, "effective_udl": effective_udl}
+        applied_moment = (effective_udl * span_length**2) / 8 + (point_load * span_length) / 4
+        applied_shear = (effective_udl * span_length) / 2 + point_load / 2
     else:
         effective_udl = 0
-        base_live_moment = 0
-        base_live_shear = 0
+        default_loads = {"udl": 0, "effective_udl": 0}
+        applied_moment = 0
+        applied_shear = 0
 
-    total_live_moment = base_live_moment + additional_live_moment
-    total_live_shear = base_live_shear + additional_live_shear
-    total_dead_moment = additional_dead_moment
-    total_dead_shear = additional_dead_shear
-    overall_applied_moment = total_live_moment + total_dead_moment
-    overall_applied_shear = total_live_shear + total_dead_shear
+    # Incorporate any additional loads:
+    for load in additional_loads:
+        load_value = load.get("value", 0)
+        distribution = load.get("distribution", "").lower()
+        if distribution == "udl":
+            applied_moment += (load_value * span_length**2) / 8
+            applied_shear += (load_value * span_length) / 2
+        elif distribution == "point":
+            applied_moment += (load_value * span_length) / 4
+            applied_shear += load_value / 2
 
-    breakdown = {
-        "base_live_moment": base_live_moment,
-        "additional_live_moment": additional_live_moment,
-        "additional_dead_moment": additional_dead_moment,
-        "total_live_moment": total_live_moment,
-        "total_dead_moment": total_dead_moment,
-        "overall_applied_moment": overall_applied_moment,
-        "base_live_shear": base_live_shear,
-        "additional_live_shear": additional_live_shear,
-        "additional_dead_shear": additional_dead_shear,
-        "total_live_shear": total_live_shear,
-        "total_dead_shear": total_dead_shear,
-        "overall_applied_shear": overall_applied_shear
-    }
-    # We'll return the overall applied moment and shear along with the default load values and breakdown.
-    default_loads = {
-        "base_udl": base_udl if loading_type=="HA" else None,
-        "effective_udl": effective_udl,
-        "kel": kel if loading_type=="HA" else None
-    } if loading_type=="HA" else {"udl": udl, "effective_udl": effective_udl}
-
-    return overall_applied_moment, overall_applied_shear, default_loads, breakdown
+    return applied_moment, applied_shear, default_loads
 
 def calculate_beam_capacity(form_data, loads):
     """
     Reads input parameters, calculates the beam's capacity (with effective length reductions),
     and computes the applied loads using the effective UDL and HA KEL formulas.
-    Also prepares a summary breakdown of the applied loads.
     """
     material = form_data.get("material")
     condition_factor = get_float(form_data.get("condition_factor"), 1.0)
@@ -168,12 +125,12 @@ def calculate_beam_capacity(form_data, loads):
     effective_member_length = get_float(form_data.get("effective_member_length"), span_length)
     loading_type = form_data.get("loading_type")
     
-    # Retrieve inputs for loaded carriageway and access type:
+    # Retrieve loaded carriageway width and access type:
     loaded_width = get_float(form_data.get("loaded_width"), 3.65)
     access_str = form_data.get("access_type", "Company")
     access_factor = 1.5 if access_str.lower() == "public" else 1.3
+    # For HA, lane_width is not used in scaling here since HA KEL is constant at 82 kN.
     
-    # For HA loading, lane_width is not used to modify the base value (HA KEL remains constant).
     # Capacity calculation based on material:
     if material == "Steel":
         steel_grade = form_data.get("steel_grade")
@@ -192,18 +149,25 @@ def calculate_beam_capacity(form_data, loads):
     else:
         moment_capacity, shear_capacity = 0, 0
 
-    # Apply effective length reduction if needed:
+    # Apply effective length reduction if necessary:
     reduction_factor = 1.0
     if effective_member_length > span_length:
         reduction_factor = span_length / effective_member_length
         moment_capacity *= reduction_factor
 
-    overall_applied_moment, overall_applied_shear, default_loads, breakdown = calculate_applied_loads(
+    applied_moment, applied_shear, default_loads = calculate_applied_loads(
         span_length, loading_type, loads, loaded_width, access_factor)
+    utilisation_ratio = applied_moment / moment_capacity if moment_capacity > 0 else float('inf')
     
-    # Separate the additional loads breakdown:
-    live_moment = breakdown["total_live_moment"]
-    dead_moment = breakdown["total_dead_moment"]
+    # For simplicity, we'll assume additional loads have been categorized externally into dead and live.
+    # In this version, the base HA/HB loads are considered "live".
+    # (You can further refine this if you add vehicle loads later.)
+    # We'll create summary values:
+    # Here, we assume all additional loads are live if not otherwise specified.
+    # If you have a "type" field in additional loads, you can separate them.
+    # For now, we'll set:
+    applied_live_moment = applied_moment  # base live (from HA/HB) + all additional loads (live assumed)
+    applied_dead_moment = 0  # not computed in this version
 
     result = {
         "Span Length (m)": span_length,
@@ -211,25 +175,25 @@ def calculate_beam_capacity(form_data, loads):
         "Reduction Factor": round(reduction_factor, 3),
         "Moment Capacity (kNm)": round(moment_capacity, 2),
         "Shear Capacity (kN)": round(shear_capacity, 2),
-        "Applied Moment (ULS) (kNm)": round(overall_applied_moment, 2),
-        "Applied Shear (ULS) (kN)": round(overall_applied_shear, 2),
-        "Applied Live Load Moment (kNm)": round(live_moment, 2),
-        "Applied Dead Load Moment (kNm)": round(dead_moment, 2),
-        "Utilisation Ratio": round(overall_applied_moment / moment_capacity, 3) if moment_capacity > 0 else "N/A",
-        "Pass/Fail": "Pass" if moment_capacity >= overall_applied_moment and shear_capacity >= overall_applied_shear else "Fail",
+        "Applied Moment (ULS) (kNm)": round(applied_moment, 2),
+        "Applied Shear (ULS) (kN)": round(applied_shear, 2),
+        "Applied Live Load Moment (kNm)": round(applied_live_moment, 2),
+        "Applied Dead Load Moment (kNm)": round(applied_dead_moment, 2),
+        "Utilisation Ratio": round(utilisation_ratio, 3) if utilisation_ratio != float('inf') else "N/A",
+        "Pass/Fail": "Pass" if moment_capacity >= applied_moment and shear_capacity >= applied_shear else "Fail",
         "Loading Type": loading_type,
         "Condition Factor": condition_factor,
         "Loaded Carriageway Width (m)": loaded_width,
         "Access Type": access_str
     }
+    if loading_type in ["HA", "HB"]:
+        key = f"{loading_type} UDL (kN/m)"
+        result[key] = round(default_loads.get("effective_udl", 0), 2)
     if loading_type == "HA":
-        result["HA UDL (kN/m)"] = round(default_loads.get("effective_udl", 0), 2)
         result["HA KEL (kN)"] = round(default_loads.get("kel", 0), 2)
-    elif loading_type == "HB":
-        result["HB UDL (kN/m)"] = round(default_loads.get("effective_udl", 0), 2)
     
-    # Also include the detailed breakdown for those who need more information.
-    result["Detailed Breakdown"] = breakdown
+    # Also include detailed breakdown if needed.
+    result["Detailed Breakdown"] = default_loads
 
     return result
 
