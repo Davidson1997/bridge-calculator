@@ -43,25 +43,27 @@ def calculate_bridge_capacity(material, steel_grade, concrete_grade, span_length
         applied_moment = 0.6 * span_length ** 2
         applied_shear = 0.8 * span_length
 
-    # Add additional dead/live loads
-    print("\n--- DEBUG: Processing Additional Loads ---")
+    # Process Additional Loads
+    print("--- DEBUG: Processing Additional Loads ---")
     for load in loads:
         load_value = load["value"]
-        print(f"Load: {load['description']}, Value: {load_value}, Type: {load['type']}")
         if load["type"] == "dead":
             applied_moment += load_value * span_length ** 2 / 8
+            print(f"Added Dead Load: {load['description']} ({load_value} kN)")
         elif load["type"] == "live":
             applied_moment += load_value * span_length ** 2 / 12  # Adjusted factor for live loads
+            print(f"Added Live Load: {load['description']} ({load_value} kN)")
+
+    # Final Checks
+    utilisation_ratio = applied_moment / moment_capacity if moment_capacity > 0 else 0
+    pass_fail = "Pass" if moment_capacity > applied_moment and shear_capacity > applied_shear else "Fail"
 
     # Debugging Output
-    print("\n--- DEBUG: Calculation Breakdown ---")
+    print("--- DEBUG: Calculation Breakdown ---")
     print("Span Length:", span_length)
     print("Applied Moment (ULS):", applied_moment)
     print("Shear Capacity:", shear_capacity)
     print("Moment Capacity:", moment_capacity)
-
-    utilisation_ratio = applied_moment / moment_capacity if moment_capacity > 0 else 0
-    pass_fail = "Pass" if moment_capacity > applied_moment and shear_capacity > applied_shear else "Fail"
 
     results["Moment Capacity (kNm)"] = round(moment_capacity, 2)
     results["Shear Capacity (kN)"] = round(shear_capacity, 2)
@@ -82,15 +84,14 @@ def calculate():
     load_desc_list = data.getlist("load_desc[]")
     load_value_list = data.getlist("load_value[]")
     load_type_list = data.getlist("load_type[]")
-    
+
     if load_desc_list and load_value_list and load_type_list:
         for desc, value, load_type in zip(load_desc_list, load_value_list, load_type_list):
             if value.strip():
                 loads.append({"description": desc, "value": get_float(value), "type": load_type})
 
-    # Debugging Loads Before Calculation
-    print("\n--- DEBUG: Received Loads ---")
-    print(loads)
+    print("--- DEBUG: Received Loads ---")
+    print(loads)  # Debugging print
 
     results = calculate_bridge_capacity(
         data.get("material"),
