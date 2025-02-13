@@ -23,7 +23,7 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     Z_plastic = (flange_width * flange_thickness * (beam_depth - flange_thickness) +
                  (web_thickness * (beam_depth - 2 * flange_thickness) ** 2) / 4) / 1e6
     moment_capacity = fy * Z_plastic / condition_factor  # kNm
-    shear_capacity = fy * web_thickness * beam_depth / (1.73 * condition_factor)  # kN
+    shear_capacity = fy * web_thickness * beam_depth / (1.73 * condition_factor) / 1000  # Now in kN
     return moment_capacity, shear_capacity
 
 def calculate_concrete_capacity(concrete_grade, beam_width, effective_depth, rebar_size=0, rebar_spacing=0):
