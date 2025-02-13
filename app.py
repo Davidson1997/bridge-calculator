@@ -57,49 +57,60 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
     Calculates the applied moment and shear from the default load case plus any additional loads.
     
     For HA loading:
-      - UDL per lane width = 230*(1/span_length)^0.67 (kN/m)
-      - The effective UDL on the beam is:
+      - The UDL per lane width is fixed at 43.7 kN/m.
+      - The effective UDL is computed as:
       
-            Effective UDL = ((UDL per lane width × 0.76) / (3.65/2.5)) × (Loaded Carriageway Width / 2.5) × Access Factor
+            Effective UDL = ((43.7 × 0.76) / (3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor
       
-      - The HA KEL remains the same as before, computed as:
+      - The HA KEL is computed as:
       
-            HA KEL = 82 × (3.65 / lane_width)   if lane_width < 3.65, else 82 kN
+            HA KEL = 82 × (3.65 / lane_width)   (if lane_width < 3.65, else 82 kN)
       
-    For HB loading, fixed values are used.
+      The total applied moment is then:
+      
+            Applied Moment = (Effective UDL × L²)/8 + (HA KEL × L)/4
+      
+      and the total applied shear is:
+      
+            Applied Shear = (Effective UDL × L)/2 + (HA KEL)/2
+      
+    For HB loading, the point load remains as defined.
     """
     if loading_type == "HA":
-        udl = 230 * (1 / span_length)**0.67  # kN/m per lane width
-        point_load = 120  # kN (adjust if needed)
-        # Calculate HA KEL (unchanged)
+        udl = 43.7  # kN/m per lane width
+        # HA KEL calculation (unchanged)
         if lane_width is None or lane_width <= 0:
             lane_width = 3.65
-        if lane_width < 3.65:
-            compensating_factor = 3.65 / lane_width
-        else:
-            compensating_factor = 1.0
+        compensating_factor = (3.65 / lane_width) if lane_width < 3.65 else 1.0
         kel = 82 * compensating_factor  # HA KEL in kN
-
-        # Compute effective UDL using the new formula:
+        
+        # Compute effective UDL using the given formula:
         if loaded_width is None or loaded_width <= 0:
             loaded_width = 3.65  # default standard width
         if access_factor is None:
             access_factor = 1.3  # default to company access
         effective_udl = ((udl * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
-        default_loads = {"udl": udl, "point_load": point_load, "effective_udl": effective_udl, "kel": kel}
+        
+        default_loads = {"udl": udl, "effective_udl": effective_udl, "kel": kel}
+        # Total applied moment and shear for HA:
+        applied_moment = (effective_udl * span_length**2) / 8 + (kel * span_length) / 4
+        applied_shear = (effective_udl * span_length) / 2 + (kel) / 2
+
     elif loading_type == "HB":
         udl = 45  # kN/m
         point_load = 180  # kN
-        effective_udl = ((udl * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor if (loaded_width and access_factor) else udl
-        default_loads = {"udl": udl, "point_load": point_load, "effective_udl": effective_udl}
+        if loaded_width is not None and access_factor is not None:
+            effective_udl = ((udl * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
+        else:
+            effective_udl = udl
+        default_loads = {"udl": udl, "effective_udl": effective_udl}
+        applied_moment = (effective_udl * span_length**2) / 8 + (point_load * span_length) / 4
+        applied_shear = (effective_udl * span_length) / 2 + point_load / 2
     else:
-        udl = 0
-        point_load = 0
         effective_udl = 0
-        default_loads = {"udl": udl, "point_load": point_load, "effective_udl": effective_udl}
-    
-    applied_moment = (effective_udl * span_length**2) / 8 + (point_load * span_length) / 4
-    applied_shear = (effective_udl * span_length) / 2 + point_load / 2
+        default_loads = {"udl": 0, "effective_udl": 0}
+        applied_moment = 0
+        applied_shear = 0
 
     for load in additional_loads:
         load_value = load.get("value", 0)
@@ -116,7 +127,7 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
 def calculate_beam_capacity(form_data, loads):
     """
     Reads input parameters, calculates the beam's capacity (with effective length reductions),
-    and computes the applied loads using the effective UDL formula for HA/HB loading.
+    and computes the applied loads using the effective UDL formula.
     """
     material = form_data.get("material")
     condition_factor = get_float(form_data.get("condition_factor"), 1.0)
@@ -124,11 +135,11 @@ def calculate_beam_capacity(form_data, loads):
     effective_member_length = get_float(form_data.get("effective_member_length"), span_length)
     loading_type = form_data.get("loading_type")
     
-    # Retrieve new inputs for loaded carriageway and access type:
+    # Retrieve inputs for loaded carriageway and access type:
     loaded_width = get_float(form_data.get("loaded_width"), 3.65)
     access_str = form_data.get("access_type", "Company")
     access_factor = 1.5 if access_str.lower() == "public" else 1.3
-    # For HA, also get lane width (used for KEL calculation)
+    # For HA loading, retrieve lane width (used for HA KEL calculation)
     lane_width = None
     if loading_type == "HA":
         lane_width = get_float(form_data.get("lane_width"), 3.65)
