@@ -32,49 +32,53 @@ def calculate_concrete_capacity(concrete_grade, beam_width, effective_depth, reb
     Calculates moment and shear capacity for a concrete beam using simplified design formulas.
     (This version uses only the available inputs from the form.)
     """
-    # Example: Use 32 for C32/40 and 40 for C40/50
     fck = 32 if concrete_grade == "C32/40" else 40
     moment_capacity = 0.156 * fck * beam_width * effective_depth ** 2 / 1e6  # kNm
     shear_capacity = 0.6 * fck * beam_width * effective_depth / 1e3  # kN
     return moment_capacity, shear_capacity
 
-def calculate_applied_loads(span_length, loading_type, additional_loads):
+def calculate_applied_loads(span_length, loading_type, additional_loads, lane_width=None):
     """
     Calculates the applied moment and shear from default load cases (HA/HB) plus any additional loads.
+    For HA loading:
+      - HA UDL = 230*(1/span_length)^0.67  [kN/m]
+      - HA KEL is fixed at 82 kN per lane width.
     """
     applied_moment = 0
     applied_shear = 0
     
-    # Default load values based on loading type (values in kN/m and kN)
     if loading_type == "HA":
-        udl = 30   # kN/m
-        point_load = 120  # kN
+        if lane_width is None or lane_width <= 0:
+            lane_width = 3.5  # default lane width in meters
+        kel = 82 * lane_width  # HA KEL (kN per lane width)
+        udl = 230 * (1 / span_length)**0.67  # kN/m (span-dependent, valid up to 50 m)
+        point_load = 120  # kN (this value can be adjusted if needed)
+        default_loads = {"udl": udl, "point_load": point_load, "kel": kel}
     elif loading_type == "HB":
-        udl = 45
-        point_load = 180
+        udl = 45  # kN/m
+        point_load = 180  # kN
+        default_loads = {"udl": udl, "point_load": point_load}
     else:
         udl = 0
         point_load = 0
-
+        default_loads = {"udl": udl, "point_load": point_load}
+    
     # Contributions from default loads:
     applied_moment += (udl * span_length ** 2) / 8 + (point_load * span_length) / 4
     applied_shear += (udl * span_length) / 2 + point_load / 2
-    logging.debug("Default loads: UDL=%s kN/m, Point Load=%s kN", udl, point_load)
     
     # Process additional loads:
     for load in additional_loads:
         load_value = load.get("value", 0)
         distribution = load.get("distribution", "").lower()
-        description = load.get("description", "Additional Load")
         if distribution == "udl":
             applied_moment += (load_value * span_length ** 2) / 8
             applied_shear += (load_value * span_length) / 2
-            logging.debug("Added UDL: %s (%s kN/m)", description, load_value)
         elif distribution == "point":
             applied_moment += (load_value * span_length) / 4
             applied_shear += load_value / 2
-            logging.debug("Added Point Load: %s (%s kN)", description, load_value)
-    return applied_moment, applied_shear
+            
+    return applied_moment, applied_shear, default_loads
 
 def calculate_beam_capacity(form_data, loads):
     """
@@ -84,7 +88,6 @@ def calculate_beam_capacity(form_data, loads):
     material = form_data.get("material")
     condition_factor = get_float(form_data.get("condition_factor"), 1.0)
     span_length = get_float(form_data.get("span_length"))
-    # New input for effective member length (if not provided, default to span length)
     effective_member_length = get_float(form_data.get("effective_member_length"), span_length)
     loading_type = form_data.get("loading_type")
     
@@ -106,13 +109,18 @@ def calculate_beam_capacity(form_data, loads):
     else:
         moment_capacity, shear_capacity = 0, 0
 
-    # Apply effective length reduction on moment capacity (e.g., lateral-torsional buckling effects)
+    # Apply effective length reduction (if effective_member_length > span_length)
     reduction_factor = 1.0
     if effective_member_length > span_length:
         reduction_factor = span_length / effective_member_length
-        moment_capacity = moment_capacity * reduction_factor
+        moment_capacity *= reduction_factor
 
-    applied_moment, applied_shear = calculate_applied_loads(span_length, loading_type, loads)
+    # For HA loading, retrieve lane width (if provided)
+    lane_width = None
+    if loading_type == "HA":
+        lane_width = get_float(form_data.get("lane_width"), 3.5)
+    
+    applied_moment, applied_shear, default_loads = calculate_applied_loads(span_length, loading_type, loads, lane_width)
     utilisation_ratio = applied_moment / moment_capacity if moment_capacity > 0 else float('inf')
     pass_fail = "Pass" if moment_capacity >= applied_moment and shear_capacity >= applied_shear else "Fail"
 
@@ -130,6 +138,12 @@ def calculate_beam_capacity(form_data, loads):
         "Additional Loads": loads,
         "Condition Factor": condition_factor
     }
+    if loading_type == "HA":
+        result["HA UDL (kN/m)"] = round(default_loads.get("udl", 0), 2)
+        result["HA KEL (kN)"] = round(default_loads.get("kel", 0), 2)
+    elif loading_type == "HB":
+        result["HB UDL (kN/m)"] = round(default_loads.get("udl", 0), 2)
+    
     logging.debug("Calculation result: %s", result)
     return result
 
@@ -139,10 +153,10 @@ def home():
 
 @app.route("/calculate", methods=["POST"])
 def calculate():
-    # Get all form fields as a dictionary
+    # Get form fields as a dictionary
     form_data = request.form.to_dict()
     
-    # Process additional loads from table rows
+    # Process additional loads from table rows:
     additional_loads = []
     load_desc_list = request.form.getlist("load_desc[]")
     load_value_list = request.form.getlist("load_value[]")

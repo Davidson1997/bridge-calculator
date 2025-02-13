@@ -27,6 +27,16 @@
       }
     }
 
+    // Toggle lane width field based on loading type
+    function updateLoadingTypeOptions() {
+      var loadingType = document.getElementById("loading_type").value;
+      if (loadingType === "HA") {
+        document.getElementById("lane-width-group").style.display = "block";
+      } else {
+        document.getElementById("lane-width-group").style.display = "none";
+      }
+    }
+
     // Add a new row for an additional load
     function addLoad() {
       var table = document.getElementById("loadTable").getElementsByTagName('tbody')[0];
@@ -54,6 +64,11 @@
     function removeLoad(button) {
       var row = button.parentNode.parentNode;
       row.parentNode.removeChild(row);
+    }
+
+    window.onload = function() {
+      updateMaterialOptions();
+      updateLoadingTypeOptions();
     }
   </script>
 </head>
@@ -135,10 +150,15 @@
           </div>
           <div class="form-group">
             <label for="loading_type">Loading Type:</label>
-            <select class="form-control" name="loading_type" id="loading_type" required>
+            <select class="form-control" name="loading_type" id="loading_type" onchange="updateLoadingTypeOptions()" required>
               <option value="HA">HA Loading</option>
               <option value="HB">HB Loading</option>
             </select>
+          </div>
+          <!-- Lane Width for HA Loading -->
+          <div class="form-group" id="lane-width-group" style="display:none;">
+            <label for="lane_width">Lane Width (m):</label>
+            <input type="number" step="0.1" class="form-control" name="lane_width" id="lane_width" placeholder="e.g., 3.5">
           </div>
           <div class="form-group">
             <label for="condition_factor">Member Condition Factor:</label>
@@ -193,7 +213,7 @@
       </div>
     </div>
 
-    <!-- Bridge Diagram -->
+    <!-- Bridge Diagram (SVG) -->
     <div class="card mt-4">
       <div class="card-header bg-info text-white">
         <h4>Bridge Diagram</h4>
@@ -205,30 +225,28 @@
           <!-- Draw beam (horizontal line) -->
           <line x1="50" y1="150" x2="{{ 50 + beamLengthPx }}" y2="150" stroke="black" stroke-width="4" />
           <!-- Draw supports -->
-          <!-- Left support -->
           <polygon points="40,150 50,140 50,160" fill="black" />
-          <!-- Right support -->
           <polygon points="{{ 50 + beamLengthPx }},150 {{ 50 + beamLengthPx - 10 }},140 {{ 50 + beamLengthPx - 10 }},160" fill="black" />
-          <!-- Define arrowhead marker -->
+          <!-- Arrowhead definition -->
           <defs>
             <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
               <polygon points="0 0, 10 3.5, 0 7" fill="black"/>
             </marker>
           </defs>
-          <!-- Draw default UDL arrow (red) above beam -->
+          <!-- Default UDL arrow (red) above beam -->
           <line x1="50" y1="120" x2="{{ 50 + beamLengthPx }}" y2="120" stroke="red" stroke-width="2" marker-end="url(#arrowhead)"/>
           <text x="{{ 50 + beamLengthPx/2 }}" y="110" text-anchor="middle" fill="red" font-size="12">
-            Default UDL ({{ '30 kN/m' if result['loading_type'] == 'HA' else '45 kN/m' }})
+            Default UDL ({{ result.loading_type == 'HA' and result['HA UDL (kN/m)'] or result['HB UDL (kN/m)'] }} kN/m)
           </text>
-          <!-- Draw default point load arrow (blue) at mid-span -->
+          <!-- Default point load arrow (blue) at mid-span -->
           {% set midSpan = 50 + beamLengthPx/2 %}
           <line x1="{{ midSpan }}" y1="150" x2="{{ midSpan }}" y2="50" stroke="blue" stroke-width="2" marker-end="url(#arrowhead)"/>
           <text x="{{ midSpan + 10 }}" y="45" fill="blue" font-size="12">Point Load</text>
-          <!-- Effective length and reduction factor text -->
+          <!-- Effective length and reduction factor info -->
           <text x="50" y="280" fill="black" font-size="14">
             Effective Member Length: {{ result['Effective Member Length (m)'] }} m, Reduction Factor: {{ result['Reduction Factor'] }}
           </text>
-          <!-- Draw additional loads (if any) -->
+          <!-- Additional loads (if any) -->
           {% if result['Additional Loads'] %}
             {% set num_loads = result['Additional Loads']|length %}
             {% for load in result['Additional Loads'] %}
@@ -254,4 +272,3 @@
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>
-
