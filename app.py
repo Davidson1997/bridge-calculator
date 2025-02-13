@@ -59,6 +59,7 @@ def calculate_bridge_capacity(material, steel_grade, concrete_grade, span_length
     print("DEBUG: Applied Moment =", applied_moment)
     print("DEBUG: Shear Capacity =", shear_capacity)
     print("DEBUG: Utilisation Ratio =", utilisation_ratio)
+    print("DEBUG: Received loads:", loads)  # Debugging line
 
     results["Moment Capacity (kNm)"] = round(moment_capacity, 2)
     results["Shear Capacity (kN)"] = round(shear_capacity, 2)
@@ -79,12 +80,11 @@ def calculate():
     load_desc_list = data.getlist("load_desc[]")
     load_value_list = data.getlist("load_value[]")
     load_type_list = data.getlist("load_type[]")
+    
     if load_desc_list and load_value_list and load_type_list:
         for desc, value, load_type in zip(load_desc_list, load_value_list, load_type_list):
             if value.strip():
                 loads.append({"description": desc, "value": get_float(value), "type": load_type})
-
-	print("Received loads:", loads)  # Debugging line
 
     results = calculate_bridge_capacity(
         data.get("material"),
