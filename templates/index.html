@@ -69,20 +69,91 @@
 </head>
 <body>
   <div class="container">
-    <!-- Main Form Card -->
     <div class="card">
       <div class="card-header bg-primary text-white">
         <h2>Bridge Capacity Calculator</h2>
       </div>
       <div class="card-body">
         <form action="/calculate" method="post">
-          <!-- [All your existing form fields remain unchanged] -->
-          <!-- Bridge Type, Span, Effective Member Length, Material, Steel/Concrete options, Loading Type, etc. -->
-          <!-- For HA/HB loading -->
+          <div class="form-group">
+            <label for="bridge_type">Bridge Type:</label>
+            <select class="form-control" name="bridge_type" id="bridge_type" required>
+              <option value="Simply Supported">Simply Supported</option>
+              <option value="Cantilever">Cantilever</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="span_length">Span Length (m):</label>
+            <input type="number" step="0.1" class="form-control" name="span_length" id="span_length" required>
+          </div>
+          <div class="form-group">
+            <label for="effective_member_length">Effective Member Length (m):</label>
+            <input type="number" step="0.1" class="form-control" name="effective_member_length" id="effective_member_length" required>
+          </div>
+          <div class="form-group">
+            <label for="material">Material:</label>
+            <select class="form-control" name="material" id="material" onchange="updateMaterialOptions()" required>
+              <option value="">-- Select Material --</option>
+              <option value="Steel">Steel</option>
+              <option value="Concrete">Concrete</option>
+            </select>
+          </div>
+          <!-- Steel Options -->
+          <div id="steel-options" class="d-none">
+            <div class="form-group">
+              <label for="steel_grade">Steel Grade:</label>
+              <select class="form-control" name="steel_grade" id="steel_grade">
+                <option value="S275">S275</option>
+                <option value="S355">S355</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="flange_width">Flange Width (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="flange_width" id="flange_width">
+            </div>
+            <div class="form-group">
+              <label for="flange_thickness">Flange Thickness (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="flange_thickness" id="flange_thickness">
+            </div>
+            <div class="form-group">
+              <label for="web_thickness">Web Thickness (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="web_thickness" id="web_thickness">
+            </div>
+            <div class="form-group">
+              <label for="beam_depth">Beam Depth (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="beam_depth" id="beam_depth">
+            </div>
+          </div>
+          <!-- Concrete Options -->
+          <div id="concrete-options" class="d-none">
+            <div class="form-group">
+              <label for="concrete_grade">Concrete Grade:</label>
+              <select class="form-control" name="concrete_grade" id="concrete_grade">
+                <option value="C32/40">C32/40</option>
+                <option value="C40/50">C40/50</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="beam_width">Beam Width (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="beam_width" id="beam_width">
+            </div>
+            <div class="form-group">
+              <label for="effective_depth">Effective Depth (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="effective_depth" id="effective_depth">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="loading_type">Loading Type:</label>
+            <select class="form-control" name="loading_type" id="loading_type" onchange="updateLoadingTypeOptions()" required>
+              <option value="HA">HA Loading</option>
+              <option value="HB">HB Loading</option>
+            </select>
+          </div>
+          <!-- For HA/HB loading, new inputs -->
           <div id="loaded-access-group">
             <div class="form-group">
               <label for="loaded_width">Loaded Carriageway Width (m):</label>
-              <input type="number" step="0.1" class="form-control" name="loaded_width" id="loaded_width" placeholder="e.g., 3.43">
+              <input type="number" step="0.1" class="form-control" name="loaded_width" id="loaded_width" placeholder="e.g., 7.3">
             </div>
             <div class="form-group">
               <label for="access_type">Access Type:</label>
@@ -92,7 +163,7 @@
               </select>
             </div>
           </div>
-          <!-- For HA loading, lane width input -->
+          <!-- For HA loading, lane width (used for HA KEL calculation) -->
           <div class="form-group" id="lane-width-group">
             <label for="lane_width">Lane Width (m):</label>
             <input type="number" step="0.1" class="form-control" name="lane_width" id="lane_width" placeholder="e.g., 3.65">
@@ -102,7 +173,7 @@
             <input type="number" step="0.01" class="form-control" name="condition_factor" id="condition_factor" required>
           </div>
           
-          <!-- Additional Loads Section -->
+          <!-- Additional Loads -->
           <div class="card mt-4">
             <div class="card-header">
               <h4>Additional Loads</h4>
@@ -131,57 +202,78 @@
     </div>
 
     {% if result %}
-      <!-- Summary Table: Highlighting Main Results -->
-      <div class="card mt-4">
-        <div class="card-header bg-warning text-white">
-          <h3>Summary</h3>
-        </div>
-        <div class="card-body">
-          <table class="table table-bordered">
-            <tr>
-              <th>Beam Moment Capacity (kNm)</th>
-              <td>{{ result["Moment Capacity (kNm)"] }}</td>
-            </tr>
-            <tr>
-              <th>Applied Live Load Moment (kNm)</th>
-              <td>{{ result["Applied Live Load Moment (kNm)"] }}</td>
-            </tr>
-            <tr>
-              <th>Applied Dead Load Moment (kNm)</th>
-              <td>{{ result["Applied Dead Load Moment (kNm)"] }}</td>
-            </tr>
-          </table>
-        </div>
+    <!-- Results Card -->
+    <div class="card mt-4">
+      <div class="card-header bg-success text-white">
+        <h3>Calculation Results</h3>
       </div>
+      <div class="card-body">
+        <table class="table table-striped">
+          <tbody>
+            {% for key, value in result.items() %}
+            <tr>
+              <th>{{ key }}</th>
+              <td>{{ value }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
 
-      <!-- Detailed Results (Collapsible) -->
-      <button class="btn btn-secondary mt-3" type="button" data-toggle="collapse" data-target="#detailedResults" aria-expanded="false" aria-controls="detailedResults">
-        Show Detailed Results
-      </button>
-      <div class="collapse" id="detailedResults">
-        <div class="card card-body mt-3">
-          <pre>{{ result|tojson(indent=2) }}</pre>
-        </div>
+    <!-- Bridge Diagram (SVG) -->
+    <div class="card mt-4">
+      <div class="card-header bg-info text-white">
+        <h4>Bridge Diagram</h4>
       </div>
-
-      <!-- Full Results Table -->
-      <div class="card mt-4">
-        <div class="card-header bg-success text-white">
-          <h3>Calculation Results</h3>
-        </div>
-        <div class="card-body">
-          <table class="table table-striped">
-            <tbody>
-              {% for key, value in result.items() if key not in ["Applied Live Load Moment (kNm)", "Applied Dead Load Moment (kNm)", "Moment Capacity (kNm)"] %}
-              <tr>
-                <th>{{ key }}</th>
-                <td>{{ value }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+      <div class="card-body">
+        <svg id="bridgeDiagram" width="750" height="300" xmlns="http://www.w3.org/2000/svg">
+          {% set scale = 20 %}
+          {% set beamLengthPx = result['Span Length (m)'] * scale %}
+          <!-- Draw beam -->
+          <line x1="50" y1="150" x2="{{ 50 + beamLengthPx }}" y2="150" stroke="black" stroke-width="4" />
+          <!-- Draw supports -->
+          <polygon points="40,150 50,140 50,160" fill="black" />
+          <polygon points="{{ 50 + beamLengthPx }},150 {{ 50 + beamLengthPx - 10 }},140 {{ 50 + beamLengthPx - 10 }},160" fill="black" />
+          <!-- Arrowhead definition -->
+          <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+              <polygon points="0 0, 10 3.5, 0 7" fill="black"/>
+            </marker>
+          </defs>
+          <!-- Default UDL arrow (red) above beam -->
+          <line x1="50" y1="120" x2="{{ 50 + beamLengthPx }}" y2="120" stroke="red" stroke-width="2" marker-end="url(#arrowhead)"/>
+          <text x="{{ 50 + beamLengthPx/2 }}" y="110" text-anchor="middle" fill="red" font-size="12">
+            Default UDL ({{ result['Loading Type'] }}): 
+            {% if result['Loading Type'] in ['HA', 'HB'] %}
+              {{ result[result['Loading Type'] ~ " UDL (kN/m)"] }} kN/m
+            {% endif %}
+          </text>
+          <!-- Default point load arrow (blue) at mid-span -->
+          {% set midSpan = 50 + beamLengthPx/2 %}
+          <line x1="{{ midSpan }}" y1="150" x2="{{ midSpan }}" y2="50" stroke="blue" stroke-width="2" marker-end="url(#arrowhead)"/>
+          <text x="{{ midSpan + 10 }}" y="45" fill="blue" font-size="12">Point Load</text>
+          <!-- Effective length info -->
+          <text x="50" y="280" fill="black" font-size="14">
+            Effective Member Length: {{ result['Effective Member Length (m)'] }} m, Reduction Factor: {{ result['Reduction Factor'] }}
+          </text>
+          <!-- Additional loads (if any) -->
+          {% if result['Additional Loads'] %}
+            {% set num_loads = result['Additional Loads']|length %}
+            {% for load in result['Additional Loads'] %}
+              {% set pos = 50 + (loop.index0 + 1) * beamLengthPx / (num_loads + 1) %}
+              {% if load.distribution == 'udl' %}
+                <line x1="{{ pos }}" y1="120" x2="{{ pos }}" y2="100" stroke="red" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="{{ pos }}" y="90" fill="red" font-size="12" text-anchor="middle">{{ load.value }} kN/m</text>
+              {% else %}
+                <line x1="{{ pos }}" y1="150" x2="{{ pos }}" y2="70" stroke="blue" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="{{ pos }}" y="60" fill="blue" font-size="12" text-anchor="middle">{{ load.value }} kN</text>
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+        </svg>
       </div>
+    </div>
     {% endif %}
   </div>
 

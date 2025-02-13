@@ -57,10 +57,9 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
     Calculates the applied moment and shear from the default load case plus any additional loads.
     
     For HA loading:
-      - Base UDL = 230*(1/span_length)^0.67 [kN/m]
-      - Effective UDL = ((Base UDL × 0.76)/(3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor
-      - HA KEL = ((82 × 0.76)/(3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor  
-        (82 kN is constant)
+      - Base UDL = 230*(1/span_length)^0.67  [kN/m]
+      - Effective UDL = ((Base UDL × 0.76) / (3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor
+      - HA KEL = ((82 × 0.76) / (3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor   (82 kN is constant)
       
       Then:
           Applied Moment = (Effective UDL × L²)/8 + (HA KEL × L)/4
@@ -69,15 +68,15 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
     For HB loading, fixed values are used.
     """
     if loading_type == "HA":
-        # Base UDL is a function of span:
-        base_udl = 230 * (1 / span_length)**0.67  # kN/m; e.g. ~43.7 kN/m for 11.9 m span
+        # Calculate base UDL from span:
+        base_udl = 230 * (1 / span_length)**0.67  # kN/m; this will be ~43.7 kN/m for a span of 11.9 m
         if loaded_width is None or loaded_width <= 0:
             loaded_width = 3.65  # default standard width
         if access_factor is None:
             access_factor = 1.3  # default to company access
         effective_udl = ((base_udl * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
 
-        # HA KEL remains constant at 82 kN scaled by the same factors:
+        # HA KEL is a constant 82 kN (base) scaled by the same factors:
         base_kel = 82  # kN constant
         kel = ((base_kel * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
 
@@ -101,7 +100,6 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
         applied_moment = 0
         applied_shear = 0
 
-    # Incorporate any additional loads:
     for load in additional_loads:
         load_value = load.get("value", 0)
         distribution = load.get("distribution", "").lower()
@@ -125,11 +123,11 @@ def calculate_beam_capacity(form_data, loads):
     effective_member_length = get_float(form_data.get("effective_member_length"), span_length)
     loading_type = form_data.get("loading_type")
     
-    # Retrieve loaded carriageway width and access type:
+    # Retrieve inputs for loaded carriageway and access type:
     loaded_width = get_float(form_data.get("loaded_width"), 3.65)
     access_str = form_data.get("access_type", "Company")
     access_factor = 1.5 if access_str.lower() == "public" else 1.3
-    # For HA, lane_width is not used in scaling here since HA KEL is constant at 82 kN.
+    # (For HA, lane width is no longer used for the base value; HA KEL remains constant at 82 kN)
     
     # Capacity calculation based on material:
     if material == "Steel":
@@ -149,7 +147,7 @@ def calculate_beam_capacity(form_data, loads):
     else:
         moment_capacity, shear_capacity = 0, 0
 
-    # Apply effective length reduction if necessary:
+    # Apply effective length reduction if effective_member_length > span_length:
     reduction_factor = 1.0
     if effective_member_length > span_length:
         reduction_factor = span_length / effective_member_length
@@ -158,16 +156,7 @@ def calculate_beam_capacity(form_data, loads):
     applied_moment, applied_shear, default_loads = calculate_applied_loads(
         span_length, loading_type, loads, loaded_width, access_factor)
     utilisation_ratio = applied_moment / moment_capacity if moment_capacity > 0 else float('inf')
-    
-    # For simplicity, we'll assume additional loads have been categorized externally into dead and live.
-    # In this version, the base HA/HB loads are considered "live".
-    # (You can further refine this if you add vehicle loads later.)
-    # We'll create summary values:
-    # Here, we assume all additional loads are live if not otherwise specified.
-    # If you have a "type" field in additional loads, you can separate them.
-    # For now, we'll set:
-    applied_live_moment = applied_moment  # base live (from HA/HB) + all additional loads (live assumed)
-    applied_dead_moment = 0  # not computed in this version
+    pass_fail = "Pass" if moment_capacity >= applied_moment and shear_capacity >= applied_shear else "Fail"
 
     result = {
         "Span Length (m)": span_length,
@@ -177,24 +166,19 @@ def calculate_beam_capacity(form_data, loads):
         "Shear Capacity (kN)": round(shear_capacity, 2),
         "Applied Moment (ULS) (kNm)": round(applied_moment, 2),
         "Applied Shear (ULS) (kN)": round(applied_shear, 2),
-        "Applied Live Load Moment (kNm)": round(applied_live_moment, 2),
-        "Applied Dead Load Moment (kNm)": round(applied_dead_moment, 2),
         "Utilisation Ratio": round(utilisation_ratio, 3) if utilisation_ratio != float('inf') else "N/A",
-        "Pass/Fail": "Pass" if moment_capacity >= applied_moment and shear_capacity >= applied_shear else "Fail",
+        "Pass/Fail": pass_fail,
         "Loading Type": loading_type,
         "Condition Factor": condition_factor,
         "Loaded Carriageway Width (m)": loaded_width,
         "Access Type": access_str
     }
     if loading_type in ["HA", "HB"]:
-        key = f"{loading_type} UDL (kN/m)"
-        result[key] = round(default_loads.get("effective_udl", 0), 2)
+        result[f"{loading_type} UDL (kN/m)"] = round(default_loads.get("effective_udl", 0), 2)
     if loading_type == "HA":
         result["HA KEL (kN)"] = round(default_loads.get("kel", 0), 2)
     
-    # Also include detailed breakdown if needed.
-    result["Detailed Breakdown"] = default_loads
-
+    logging.debug("Calculation result: %s", result)
     return result
 
 @app.route("/")
@@ -204,6 +188,7 @@ def home():
 @app.route("/calculate", methods=["POST"])
 def calculate():
     form_data = request.form.to_dict()
+    
     additional_loads = []
     load_desc_list = request.form.getlist("load_desc[]")
     load_value_list = request.form.getlist("load_value[]")
