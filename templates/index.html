@@ -44,7 +44,22 @@
             border-left: 5px solid #28a745;
             text-align: left;
         }
+        .hidden { display: none; }
     </style>
+    <script>
+        function updateMaterialOptions() {
+            var material = document.getElementById("material").value;
+            
+            document.getElementById("steel-options").classList.add("hidden");
+            document.getElementById("concrete-options").classList.add("hidden");
+
+            if (material === "Steel") {
+                document.getElementById("steel-options").classList.remove("hidden");
+            } else if (material === "Concrete") {
+                document.getElementById("concrete-options").classList.remove("hidden");
+            }
+        }
+    </script>
 </head>
 <body>
     <div class="container">
@@ -61,33 +76,38 @@
             <input type="number" step="0.1" name="span_length" required>
 
             <label>Material:</label>
-            <select name="material" required>
+            <select name="material" id="material" onchange="updateMaterialOptions()" required>
+                <option value="">-- Select Material --</option>
                 <option value="Steel">Steel</option>
                 <option value="Concrete">Concrete</option>
             </select>
 
-            <label>Flange Width (mm):</label>
-            <input type="number" step="1" name="flange_width">
+            <div id="steel-options" class="hidden">
+                <label>Flange Width (mm):</label>
+                <input type="number" step="0.1" name="flange_width">
 
-            <label>Flange Thickness (mm):</label>
-            <input type="number" step="1" name="flange_thickness">
+                <label>Flange Thickness (mm):</label>
+                <input type="number" step="0.1" name="flange_thickness">
 
-            <label>Web Thickness (mm):</label>
-            <input type="number" step="1" name="web_thickness">
+                <label>Web Thickness (mm):</label>
+                <input type="number" step="0.1" name="web_thickness">
 
-            <label>Beam Depth (mm):</label>
-            <input type="number" step="1" name="beam_depth">
+                <label>Beam Depth (mm):</label>
+                <input type="number" step="0.1" name="beam_depth">
+            </div>
 
-            <label>Beam Width (mm) [For Concrete]:</label>
-            <input type="number" step="1" name="beam_width">
+            <div id="concrete-options" class="hidden">
+                <label>Beam Width (mm):</label>
+                <input type="number" step="0.1" name="beam_width">
 
-            <label>Effective Depth (mm) [For Concrete]:</label>
-            <input type="number" step="1" name="effective_depth">
+                <label>Effective Depth (mm):</label>
+                <input type="number" step="0.1" name="effective_depth">
+            </div>
 
             <label>Loading Type:</label>
-            <select name="loading_type">
-                <option value="HA">HA Loading</option>
-                <option value="HB">HB Loading</option>
+            <select name="loading_type" required>
+                <option value="HA Loading">HA Loading</option>
+                <option value="HB Loading">HB Loading</option>
             </select>
 
             <label>Member Condition Factor:</label>
@@ -95,6 +115,23 @@
 
             <button type="submit">Calculate</button>
         </form>
+
+        {% if result %}
+        <div class="result-box">
+            <h2>Calculation Results:</h2>
+            <p><strong>Moment Capacity:</strong> {{ result.moment_capacity_kNm }} kNm</p>
+            <p><strong>Shear Capacity:</strong> {{ result.shear_capacity_kN }} kN</p>
+            <p><strong>Status:</strong> <span style="color: {% if result.pass_fail == 'Pass' %}green{% else %}red{% endif %};">{{ result.pass_fail }}</span></p>
+            <h3>Calculation Breakdown:</h3>
+            <p>Capacity calculations are performed per Eurocode guidelines:</p>
+            <ul>
+                <li>Steel: EN 1993-1-1</li>
+                <li>Concrete: EN 1992-1-1</li>
+                <li>Timber: EN 1995-1-1</li>
+            </ul>
+            <p>HA Loading and KEL checks are implemented following BD 37/01 requirements.</p>
+        </div>
+        {% endif %}
     </div>
 </body>
 </html>
