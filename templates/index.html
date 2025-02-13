@@ -4,33 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bridge Capacity Calculator</title>
-    <style>
-        body { 
-            font-family: Arial, sans-serif;
-            background-color: #e6f7ff;
-            text-align: center;
-            padding: 20px;
-        }
-        .container {
-            max-width: 800px;
-            background: white;
-            padding: 20px;
-            margin: auto;
-            border-radius: 10px;
-            box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.2);
-        }
-        h1 { color: #004d99; }
-        label { font-weight: bold; display: block; margin-top: 10px; }
-        input, select, button {
-            margin: 5px; padding: 8px; width: 90%;
-            border-radius: 5px; border: 1px solid #ccc;
-        }
-        button {
-            background-color: #0066cc;
-            color: white; font-size: 16px; cursor: pointer;
-        }
-        button:hover { background-color: #004d99; }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
@@ -46,19 +20,36 @@
             <input type="number" step="0.1" name="span_length" required>
 
             <label>Material:</label>
-            <select name="material" required>
+            <select name="material" id="material" required>
                 <option value="Steel">Steel</option>
                 <option value="Concrete">Concrete</option>
             </select>
+
+            <label>Steel Grade:</label>
+            <select name="grade">
+                <option value="S275">S275</option>
+                <option value="S355">S355</option>
+            </select>
+
+            <label>Loading Type:</label>
+            <select name="loading_type" required>
+                <option value="HA Loading">HA Loading</option>
+                <option value="HB Loading">HB Loading</option>
+            </select>
+
+            <label>Member Condition Factor:</label>
+            <input type="number" step="0.01" name="condition_factor" required>
 
             <button type="submit">Calculate</button>
         </form>
 
         {% if result %}
-        <h2>Results:</h2>
-        <p><strong>Moment Capacity:</strong> {{ result["Moment Capacity (kNm)"] }} kNm</p>
-        <p><strong>Utilisation:</strong> {{ result["Utilisation Ratio"] }}</p>
-        <p><strong>Status:</strong> {{ result["Pass/Fail"] }}</p>
+        <div class="result-box">
+            <h2>Calculation Results:</h2>
+            {% for key, value in result.items() %}
+            <p><strong>{{ key }}:</strong> {{ value }}</p>
+            {% endfor %}
+        </div>
         {% endif %}
     </div>
 </body>
