@@ -4,9 +4,11 @@ import math
 app = Flask(__name__)
 
 def get_float(value, default=0.0):
-    """Convert input to float safely, defaulting to 0.0 if empty or None."""
+    """Safely convert input to float, defaulting if missing or invalid."""
     try:
-        return float(value.strip()) if value and isinstance(value, str) else default
+        if value is None or value.strip() == "":
+            return default
+        return float(value)
     except ValueError:
         return default
 
@@ -15,8 +17,7 @@ def calculate_bridge_capacity(
     web_thickness, beam_depth, beam_width, effective_depth, rebar_size,
     rebar_spacing, condition_factor, loads
 ):
-    """Performs bridge capacity calculations for Steel and Concrete with additional loads."""
-    
+    """Bridge capacity calculation with load handling."""
     results = {}
     moment_capacity = 0
     shear_capacity = 0
@@ -78,8 +79,11 @@ def home():
 def calculate():
     data = request.form
 
-    # Capture additional loads
+    # Debugging logs
+    print("\n🚀 Received Form Data:", dict(data))  # Convert to dict for better visibility
     loads = []
+
+    # Capture additional loads
     load_desc_list = data.getlist("load_desc[]")
     load_value_list = data.getlist("load_value[]")
     load_type_list = data.getlist("load_type[]")
@@ -89,6 +93,9 @@ def calculate():
             if value.strip():  # Ensure it's not empty
                 loads.append({"description": desc, "value": get_float(value), "type": load_type})
 
+    print("\n🛠️ Processed Loads:", loads)  # Debugging: Print processed loads
+
+    # Perform the calculations
     results = calculate_bridge_capacity(
         data.get("material"),
         get_float(data.get("span_length")),
@@ -104,6 +111,8 @@ def calculate():
         get_float(data.get("condition_factor"), 1.0),
         loads  # Now properly passing dynamic loads
     )
+
+    print("\n✅ Calculation Results:", results)  # Debugging: Print calculation results
 
     return render_template("index.html", result=results)
 
