@@ -124,9 +124,34 @@
 
             <label>Member Condition Factor:</label>
             <input type="number" step="0.01" name="condition_factor" required>
+            
+            <h3>Additional Loads</h3>
+            <div id="load-container">
+                <div class="load-input">
+                    <input type="text" name="load_desc[]" placeholder="Load Description">
+                    <input type="number" step="0.1" name="load_value[]" placeholder="Load Value (kN/m)">
+                    <select name="load_type[]">
+                        <option value="dead">Dead Load</option>
+                        <option value="live">Live Load</option>
+                    </select>
+                </div>
+            </div>
+            <button type="button" onclick="addLoadRow()">Add Load</button>
 
             <button type="submit">Calculate</button>
         </form>
     </div>
+    
+    <script>
+        function addLoadRow() {
+            var container = document.getElementById("load-container");
+            var div = document.createElement("div");
+            div.classList.add("load-input");
+            div.innerHTML = '<input type="text" name="load_desc[]" placeholder="Load Description">' +
+                            '<input type="number" step="0.1" name="load_value[]" placeholder="Load Value (kN/m)">' +
+                            '<select name="load_type[]"><option value="dead">Dead Load</option><option value="live">Live Load</option></select>';
+            container.appendChild(div);
+        }
+    </script>
 </body>
 </html>
