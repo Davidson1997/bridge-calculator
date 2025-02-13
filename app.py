@@ -10,7 +10,11 @@ def get_float(value, default=0.0):
     except ValueError:
         return default
 
-def calculate_bridge_capacity(material, span_length, loading_type, flange_width, flange_thickness, web_thickness, beam_depth, beam_width, effective_depth, rebar_size, rebar_spacing, condition_factor, loads):
+def calculate_bridge_capacity(
+    material, span_length, loading_type, flange_width, flange_thickness,
+    web_thickness, beam_depth, beam_width, effective_depth, rebar_size,
+    rebar_spacing, condition_factor, loads
+):
     """Performs bridge capacity calculations for Steel and Concrete with additional loads."""
     
     results = {}
@@ -23,8 +27,10 @@ def calculate_bridge_capacity(material, span_length, loading_type, flange_width,
     if material == "Steel":
         fy = 275 if "S275" in material else 355
         if flange_width > 0 and flange_thickness > 0 and web_thickness > 0 and beam_depth > 0:
-            Z_plastic = (flange_width * flange_thickness * (beam_depth - flange_thickness) + 
-                         (web_thickness * (beam_depth - 2 * flange_thickness) ** 2) / 4) / 1e6
+            Z_plastic = (
+                (flange_width * flange_thickness * (beam_depth - flange_thickness)) +
+                ((web_thickness * (beam_depth - 2 * flange_thickness) ** 2) / 4)
+            ) / 1e6  # Convert to m³
             moment_capacity = fy * Z_plastic / condition_factor
             shear_capacity = fy * web_thickness * beam_depth / (1.73 * condition_factor)
 
