@@ -21,38 +21,28 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
       Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
       Shear capacity = (fy * web_thickness * beam_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
       
-    All dimensions for Z_plastic are in mm and then converted to m³.
+    Dimensions for Z_plastic are in mm, then converted to m³.
     """
     # Determine yield strength based on grade:
-    # For S230, fy = 230; S275 = 275; otherwise default to 355.
     fy = 230 if steel_grade == "S230" else (275 if steel_grade == "S275" else 355)
     
-    # Plastic section modulus in m³
-    Z_plastic = (flange_width * flange_thickness * (beam_depth - flange_thickness) + 
+    # Calculate plastic section modulus in m³
+    Z_plastic = (flange_width * flange_thickness * (beam_depth - flange_thickness) +
                  (web_thickness * (beam_depth - 2 * flange_thickness)**2) / 4) / 1e6
                  
-    # New formula: multiply by condition factor then divide by safety factors 1.05 and 1.1
     Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
-    
-    # Similarly, shear capacity (converted to kN)
     shear_capacity = (fy * web_thickness * beam_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
     
     return Mpe, shear_capacity
 
 def calculate_concrete_capacity(concrete_grade, beam_width, effective_depth, rebar_size=0, rebar_spacing=0):
-    """
-    Calculates moment and shear capacity for a concrete beam using simplified design formulas.
-    Applies BD37/01 factors.
-    """
     fck = 32 if concrete_grade == "C32/40" else 40
-    moment_capacity = 0.156 * fck * beam_width * effective_depth**2 / 1e6  # kNm
-    shear_capacity = 0.6 * fck * beam_width * effective_depth / 1e3  # kN
-
+    moment_capacity = 0.156 * fck * beam_width * effective_depth**2 / 1e6
+    shear_capacity = 0.6 * fck * beam_width * effective_depth / 1e3
     BD37_moment_factor = 0.95
     BD37_shear_factor = 1.0
     moment_capacity *= BD37_moment_factor
     shear_capacity *= BD37_shear_factor
-
     return moment_capacity, shear_capacity
 
 # Effective length: e = k1 * k2 * L
@@ -62,9 +52,9 @@ def calculate_effective_length(L, k1=1.0, k2=1.0):
 # Calculate the radius of gyration about the strong (horizontal) axis (r_x)
 def calculate_radius_of_gyration_strong(B_f, t_f, t_w, d):
     """
-    Calculates the radius of gyration (r_x) about the strong axis for a symmetric I-beam.
-    A = 2 * (B_f * t_f) + t_w * (d - 2*t_f)
-    I_x =  (t_w^3*(d-2*t_f))/12 + 2 * (t_f*(B_f^3))/12
+    Calculates r_x for a symmetric I-beam about the strong axis.
+    A = 2*(B_f*t_f) + t_w*(d - 2*t_f)
+    I_x = (t_w^3*(d-2*t_f))/12 + 2*(t_f*(B_f^3))/12
     Returns r_x in meters.
     """
     A = 2 * (B_f * t_f) + t_w * (d - 2 * t_f)
@@ -72,38 +62,26 @@ def calculate_radius_of_gyration_strong(B_f, t_f, t_w, d):
     r_x = math.sqrt(I_x / A)
     return r_x / 1000.0  # convert mm to m
 
-# Lookup table for X to adjustment factor
+# Revised lookup table for X to adjustment factor (monotonic over the range 0 to 200)
 lookup_table = {
-    10: 1.00,
-    20: 0.10,
-    30: 1.00,
+    0: 1.00,
     40: 0.90,
     50: 0.80,
     60: 0.70,
     70: 0.58,
-    80: 0.60,
-    90: 0.40,
-    100: 0.38,
-    110: 0.34,
-    120: 0.28,
-    130: 0.25,
-    140: 0.22,
-    150: 0.19,
-    160: 0.18,
-    170: 0.16,
-    180: 0.14,
-    190: 0.13,
-    200: 0.12,
-    210: 0.115,
-    220: 0.10,
-    230: 0.095,
-    240: 0.08,
-    250: 0.075,
-    260: 0.07,
-    270: 0.065,
-    280: 0.06,
-    290: 0.06,
-    300: 0.06
+    80: 0.55,   # Adjusted values as needed
+    90: 0.50,
+    100: 0.45,
+    110: 0.40,
+    120: 0.35,
+    130: 0.32,
+    140: 0.30,
+    150: 0.28,
+    160: 0.26,
+    170: 0.24,
+    180: 0.22,
+    190: 0.20,
+    200: 0.18
 }
 
 def get_lookup_factor(X):
@@ -119,7 +97,7 @@ def get_lookup_factor(X):
             return lookup_table[keys[i]] + fraction * (lookup_table[keys[i+1]] - lookup_table[keys[i]])
     return 1.0
 
-# Calculate v from F using interpolation (v-table remains as before)
+# Calculate v from F via linear interpolation using the provided v-table.
 def calculate_v_from_F(F):
     table = {
         0: 1.000,
@@ -153,13 +131,11 @@ def calculate_v_from_F(F):
     fraction = F - lower
     return table[lower] + fraction * (table[upper] - table[lower])
 
-# Calculate slenderness using the proper radius of gyration about the strong axis (r_x)
+# Calculate slenderness using the proper r_x.
 def calculate_slenderness(effective_length, beam_depth, flange_thickness, B_f, t_w):
-    # Compute r_x using our new function
     r = calculate_radius_of_gyration_strong(B_f, flange_thickness, t_w, beam_depth)
     F_param = (effective_length * flange_thickness) / (r * beam_depth)
     v = calculate_v_from_F(F_param)
-    # Using k4 = 1.0 and n = 1.0
     slenderness = (effective_length / r) * v
     return slenderness, F_param, v, r
 
@@ -167,11 +143,11 @@ def calculate_slenderness(effective_length, beam_depth, flange_thickness, B_f, t
 def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_width, flange_thickness, web_thickness, beam_depth):
     """
     Adjusts Mpe using a BS5400-3-style approach:
-      1. Compute slenderness: λ = (e / r_x) * v, where r_x is computed from the second moment of area about the Y–Y direction.
-      2. Compute X = λ * sqrt(fy/355) (with fy determined by steel grade).
+      1. Compute slenderness: λ = (e / r_x) * v, with r_x calculated properly.
+      2. Compute X = λ * sqrt(fy/355).
       3. Obtain a lookup factor from the lookup table using X.
       4. Then, design moment capacity MR = (lookup factor) * Mpe.
-      5. Return MR, slenderness, and X.
+      5. Returns MR, slenderness, and X.
     """
     fy = 230 if steel_grade == "S230" else (275 if steel_grade == "S275" else 355)
     slenderness, F_param, v_value, r = calculate_slenderness(effective_length, beam_depth, flange_thickness, flange_width, web_thickness)
@@ -326,5 +302,3 @@ def calculate():
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
