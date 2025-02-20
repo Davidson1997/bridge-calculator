@@ -55,48 +55,67 @@ def calculate_concrete_capacity(concrete_grade, beam_width, effective_depth, reb
 def calculate_effective_length(L, k1=1.0, k2=1.0):
     return k1 * k2 * L
 
-# Compactness check:
-def is_section_compact(steel_grade, flange_width, flange_thickness, web_thickness, beam_depth):
-    """
-    Checks whether the section is compact.
-    Flange is compact if:
-       flange_width <= 7 * flange_thickness * sqrt(355 / σ_y)
-    Web is compact if:
-       beam_depth <= 28 * web_thickness * sqrt(355 / σ_y)
-    σ_y is 275 for S275 and 355 for S355.
-    """
-    fy = 275 if steel_grade == "S275" else 355
-    flange_limit = 7 * flange_thickness * math.sqrt(355 / fy)
-    web_limit = 28 * web_thickness * math.sqrt(355 / fy)
-    return (flange_width <= flange_limit) and (beam_depth <= web_limit)
+# New function: interpolate v from F using the provided table.
+def calculate_v_from_F(F):
+    table = {
+        0: 1.000,
+        1: 0.988,
+        2: 0.956,
+        3: 0.912,
+        4: 0.864,
+        5: 0.817,
+        6: 0.774,
+        7: 0.734,
+        8: 0.699,
+        9: 0.668,
+        10: 0.639,
+        11: 0.614,
+        12: 0.591,
+        13: 0.571,
+        14: 0.552,
+        15: 0.535,
+        16: 0.519,
+        17: 0.505,
+        18: 0.492,
+        19: 0.479,
+        20: 0.468
+    }
+    if F <= 0:
+        return 1.0
+    if F >= 20:
+        return 0.468
+    lower = int(math.floor(F))
+    upper = lower + 1
+    v_lower = table[lower]
+    v_upper = table[upper]
+    fraction = F - lower
+    v = v_lower + fraction * (v_upper - v_lower)
+    return v
 
-# Slenderness parameter calculation:
-def calculate_slenderness(effective_length, r, k4, n, v):
-    return (effective_length / r) * k4 * n * v
+# New slenderness calculation based on your formula:
+# F_param = (effective_length * flange_thickness) / (r * beam_depth)
+# Then v is calculated from F_param and slenderness = (effective_length / r) * v.
+def calculate_slenderness(effective_length, r, beam_depth, flange_thickness):
+    F_param = (effective_length * flange_thickness) / (r * beam_depth)
+    v = calculate_v_from_F(F_param)
+    slenderness = (effective_length / r) * v
+    return slenderness, F_param, v
 
-# BD37/01-style moment capacity adjustment:
+# BD37/01-style moment capacity adjustment for steel beams:
 def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_width, flange_thickness, web_thickness, beam_depth):
     """
-    Adjusts Mpe using a simplified BS5400-3 approach:
-      1. Check section compactness.
-      2. Calculate slenderness parameter:
-         λ = (effective_length / r) * k4 * n * v
-         (with r, k4, n, and v as provided placeholders)
-      3. If λ > 1, apply Mult = 1/λ; else Mult = 1.
-      4. Define Mmin = 0.8 * Mpe.
-      5. Set design moment capacity MR = max(Mmin, Mult * Mpe) but not exceeding Mpe.
+    Adjusts Mpe using BS5400-3 approach.
+    Checks section compactness and calculates slenderness.
+    If slenderness > 1, then Mult = 1/λ; otherwise Mult = 1.
+    Then defines Mmin = 0.8 * Mpe and design capacity MR = max(Mmin, Mult * Mpe), not exceeding Mpe.
     """
-    # Check compactness:
+    # Compactness check:
     compact = is_section_compact(steel_grade, flange_width, flange_thickness, web_thickness, beam_depth)
-    # For r, we use a placeholder approximation (you should replace this with a proper calculation):
-    r = beam_depth / 30  # in m (placeholder)
-    # Placeholder values for k4, n, and v:
-    k4 = 1.0
-    n = 1.0
-    v = 1.0
-    slenderness = calculate_slenderness(effective_length, r, k4, n, v)
+    # For radius of gyration, r, we use a placeholder approximation:
+    r = beam_depth / 30  # in m (update as needed)
+    slenderness, F_param, v_value = calculate_slenderness(effective_length, r, beam_depth, flange_thickness)
     if slenderness > 1.0:
-        Mult = 1.0 / slenderness
+        Mult = 1 / slenderness
     else:
         Mult = 1.0
     Mmin = 0.8 * Mpe
@@ -106,20 +125,20 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
 
 def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_width=None, access_factor=None, lane_width=None):
     if loading_type == "HA":
-        base_udl = 230 * (1 / span_length)**0.67
+        base_udl = 230 * (1 / span_length)**0.67  # kN/m
         if loaded_width is None or loaded_width <= 0:
             loaded_width = 3.65
         if access_factor is None:
             access_factor = 1.3
         effective_udl = ((base_udl * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
-        base_kel = 82
+        base_kel = 82  # kN constant
         kel = ((base_kel * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
         default_loads = {"base_udl": base_udl, "effective_udl": effective_udl, "kel": kel}
         applied_moment = (effective_udl * span_length**2) / 8 + (kel * span_length) / 4
         applied_shear = (effective_udl * span_length) / 2 + (kel) / 2
     elif loading_type == "HB":
-        udl = 45
-        point_load = 180
+        udl = 45  # kN/m
+        point_load = 180  # kN
         if loaded_width is not None and access_factor is not None:
             effective_udl = ((udl * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
         else:
@@ -247,3 +266,4 @@ def calculate():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
