@@ -18,16 +18,16 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     using a simplified plastic section modulus.
     
     New approach:
-      Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
-      Shear capacity = (fy * web_thickness * beam_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
+      Mpe = (fy * Z_plastic * condition factor) / (1.05 * 1.1)
+      Shear capacity = (fy * web_thickness * beam_depth * condition factor) / (1.73 * 1.05 * 1.1 * 1000)
       
-    Dimensions for Z_plastic are in mm, then converted to m³.
+    All dimensions for Z_plastic are in mm then converted to m³.
     """
     # Determine yield strength based on grade:
     fy = 230 if steel_grade == "S230" else (275 if steel_grade == "S275" else 355)
     
     # Calculate plastic section modulus in m³
-    Z_plastic = (flange_width * flange_thickness * (beam_depth - flange_thickness) +
+    Z_plastic = (flange_width * flange_thickness * (beam_depth - flange_thickness) + 
                  (web_thickness * (beam_depth - 2 * flange_thickness)**2) / 4) / 1e6
                  
     Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
@@ -36,6 +36,10 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     return Mpe, shear_capacity
 
 def calculate_concrete_capacity(concrete_grade, beam_width, effective_depth, rebar_size=0, rebar_spacing=0):
+    """
+    Calculates moment and shear capacity for a concrete beam using simplified design formulas.
+    Applies BD37/01 factors.
+    """
     fck = 32 if concrete_grade == "C32/40" else 40
     moment_capacity = 0.156 * fck * beam_width * effective_depth**2 / 1e6
     shear_capacity = 0.6 * fck * beam_width * effective_depth / 1e3
@@ -62,14 +66,14 @@ def calculate_radius_of_gyration_strong(B_f, t_f, t_w, d):
     r_x = math.sqrt(I_x / A)
     return r_x / 1000.0  # convert mm to m
 
-# Revised lookup table for X to adjustment factor (monotonic over the range 0 to 200)
+# Revised lookup table for X to adjustment factor (monotonic)
 lookup_table = {
     0: 1.00,
     40: 0.90,
     50: 0.80,
     60: 0.70,
     70: 0.58,
-    80: 0.55,   # Adjusted values as needed
+    80: 0.55,
     90: 0.50,
     100: 0.45,
     110: 0.40,
@@ -143,10 +147,10 @@ def calculate_slenderness(effective_length, beam_depth, flange_thickness, B_f, t
 def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_width, flange_thickness, web_thickness, beam_depth):
     """
     Adjusts Mpe using a BS5400-3-style approach:
-      1. Compute slenderness: λ = (e / r_x) * v, with r_x calculated properly.
+      1. Compute slenderness: λ = (e / r_x) * v.
       2. Compute X = λ * sqrt(fy/355).
       3. Obtain a lookup factor from the lookup table using X.
-      4. Then, design moment capacity MR = (lookup factor) * Mpe.
+      4. Design moment capacity MR = (lookup factor) * Mpe.
       5. Returns MR, slenderness, and X.
     """
     fy = 230 if steel_grade == "S230" else (275 if steel_grade == "S275" else 355)
@@ -242,35 +246,32 @@ def calculate_beam_capacity(form_data, loads):
     utilisation_ratio = applied_moment / moment_capacity if moment_capacity > 0 else float('inf')
     pass_fail = "Pass" if moment_capacity >= applied_moment and shear_capacity >= applied_shear else "Fail"
 
-    applied_live_moment = round(applied_moment, 2)
-    applied_dead_moment = 0
-
     result = {
-        "Span Length (m)": span_length,
-        "Effective Member Length (m)": effective_length,
-        "k1": k1,
-        "k2": k2,
-        "Reduction Factor": round(reduction_factor, 3),
-        "Moment Capacity (kNm)": round(moment_capacity, 2),
-        "Shear Capacity (kN)": round(shear_capacity, 2),
-        "Applied Moment (ULS) (kNm)": round(applied_moment, 2),
-        "Applied Shear (ULS) (kN)": round(applied_shear, 2),
-        "Applied Live Load Moment (kNm)": applied_live_moment,
-        "Applied Dead Load Moment (kNm)": applied_dead_moment,
-        "Utilisation Ratio": round(utilisation_ratio, 3) if utilisation_ratio != float('inf') else "N/A",
+        "Span Length (m)": round(span_length, 6),
+        "Effective Member Length (m)": round(effective_length, 6),
+        "k1": round(k1, 6),
+        "k2": round(k2, 6),
+        "Reduction Factor": round(reduction_factor, 6),
+        "Moment Capacity (kNm)": round(moment_capacity, 6),
+        "Shear Capacity (kN)": round(shear_capacity, 6),
+        "Applied Moment (ULS) (kNm)": round(applied_moment, 6),
+        "Applied Shear (ULS) (kN)": round(applied_shear, 6),
+        "Applied Live Load Moment (kNm)": round(applied_moment, 6),
+        "Applied Dead Load Moment (kNm)": round(0, 6),
+        "Utilisation Ratio": round(utilisation_ratio, 6) if utilisation_ratio != float('inf') else "N/A",
         "Pass/Fail": pass_fail,
         "Loading Type": loading_type,
-        "Condition Factor": condition_factor,
-        "Loaded Carriageway Width (m)": loaded_width,
+        "Condition Factor": round(condition_factor, 6),
+        "Loaded Carriageway Width (m)": round(loaded_width, 6),
         "Access Type": access_str
     }
     if material == "Steel":
-        result["Slenderness (λ)"] = round(slenderness, 3)
-        result["X Parameter"] = round(X, 4)
+        result["Slenderness (λ)"] = round(slenderness, 6)
+        result["X Parameter"] = round(X, 6)
     if loading_type in ["HA", "HB"]:
-        result[f"{loading_type} UDL (kN/m)"] = round(default_loads.get("effective_udl", 0), 2)
+        result[f"{loading_type} UDL (kN/m)"] = round(default_loads.get("effective_udl", 0), 6)
     if loading_type == "HA":
-        result["HA KEL (kN)"] = round(default_loads.get("kel", 0), 2)
+        result["HA KEL (kN)"] = round(default_loads.get("kel", 0), 6)
     
     logging.debug("Calculation result: %s", result)
     return result

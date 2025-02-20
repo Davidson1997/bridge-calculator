@@ -99,7 +99,7 @@
       var row = table.insertRow();
       row.innerHTML = `
         <td><input type="text" class="form-control" name="load_desc[]" required></td>
-        <td><input type="number" step="0.1" class="form-control" name="load_value[]" required></td>
+        <td><input type="number" step="0.000001" class="form-control" name="load_value[]" required></td>
         <td>
           <select class="form-select" name="load_type[]">
             <option value="dead">Dead Load</option>
@@ -147,11 +147,11 @@
           <div class="row mb-3">
             <div class="col">
               <label for="span_length" class="form-label">Span Length (m):</label>
-              <input type="number" step="0.1" class="form-control" name="span_length" id="span_length" value="{{ form_data.get('span_length','') }}" required>
+              <input type="number" step="0.000001" class="form-control" name="span_length" id="span_length" value="{{ form_data.get('span_length','') }}" required>
             </div>
             <div class="col">
               <label for="effective_member_length" class="form-label">Actual Span (m):</label>
-              <input type="number" step="0.1" class="form-control" name="effective_member_length" id="effective_member_length" value="{{ form_data.get('effective_member_length','') }}" required>
+              <input type="number" step="0.000001" class="form-control" name="effective_member_length" id="effective_member_length" value="{{ form_data.get('effective_member_length','') }}" required>
             </div>
           </div>
           <div id="effective-length-factors" class="mb-3">
@@ -194,21 +194,21 @@
               </div>
               <div class="col">
                 <label for="flange_width" class="form-label">Flange Width (mm):</label>
-                <input type="number" step="0.1" class="form-control" name="flange_width" id="flange_width" value="{{ form_data.get('flange_width','') }}">
+                <input type="number" step="0.000001" class="form-control" name="flange_width" id="flange_width" value="{{ form_data.get('flange_width','') }}">
               </div>
               <div class="col">
                 <label for="flange_thickness" class="form-label">Flange Thickness (mm):</label>
-                <input type="number" step="0.1" class="form-control" name="flange_thickness" id="flange_thickness" value="{{ form_data.get('flange_thickness','') }}">
+                <input type="number" step="0.000001" class="form-control" name="flange_thickness" id="flange_thickness" value="{{ form_data.get('flange_thickness','') }}">
               </div>
             </div>
             <div class="row mb-3">
               <div class="col">
                 <label for="web_thickness" class="form-label">Web Thickness (mm):</label>
-                <input type="number" step="0.1" class="form-control" name="web_thickness" id="web_thickness" value="{{ form_data.get('web_thickness','') }}">
+                <input type="number" step="0.000001" class="form-control" name="web_thickness" id="web_thickness" value="{{ form_data.get('web_thickness','') }}">
               </div>
               <div class="col">
                 <label for="beam_depth" class="form-label">Beam Depth (mm):</label>
-                <input type="number" step="0.1" class="form-control" name="beam_depth" id="beam_depth" value="{{ form_data.get('beam_depth','') }}">
+                <input type="number" step="0.000001" class="form-control" name="beam_depth" id="beam_depth" value="{{ form_data.get('beam_depth','') }}">
               </div>
             </div>
           </div>
@@ -224,12 +224,12 @@
               </div>
               <div class="col">
                 <label for="beam_width" class="form-label">Beam Width (mm):</label>
-                <input type="number" step="0.1" class="form-control" name="beam_width" id="beam_width" value="{{ form_data.get('beam_width','') }}">
+                <input type="number" step="0.000001" class="form-control" name="beam_width" id="beam_width" value="{{ form_data.get('beam_width','') }}">
               </div>
             </div>
             <div class="mb-3">
               <label for="effective_depth" class="form-label">Effective Depth (mm):</label>
-              <input type="number" step="0.1" class="form-control" name="effective_depth" id="effective_depth" value="{{ form_data.get('effective_depth','') }}">
+              <input type="number" step="0.000001" class="form-control" name="effective_depth" id="effective_depth" value="{{ form_data.get('effective_depth','') }}">
             </div>
           </div>
           <div class="mb-3">
@@ -244,7 +244,7 @@
             <div class="row">
               <div class="col">
                 <label for="loaded_width" class="form-label">Loaded Carriageway Width (m):</label>
-                <input type="number" step="0.1" class="form-control" name="loaded_width" id="loaded_width" placeholder="e.g., 7.3" value="{{ form_data.get('loaded_width','') }}">
+                <input type="number" step="0.000001" class="form-control" name="loaded_width" id="loaded_width" placeholder="e.g., 7.3" value="{{ form_data.get('loaded_width','') }}">
               </div>
               <div class="col">
                 <label for="access_type" class="form-label">Access Type:</label>
@@ -257,11 +257,11 @@
           </div>
           <div class="mb-3" id="lane-width-group">
             <label for="lane_width" class="form-label">Lane Width (m):</label>
-            <input type="number" step="0.1" class="form-control" name="lane_width" id="lane_width" placeholder="e.g., 3.65" value="{{ form_data.get('lane_width','') }}">
+            <input type="number" step="0.000001" class="form-control" name="lane_width" id="lane_width" placeholder="e.g., 3.65" value="{{ form_data.get('lane_width','') }}">
           </div>
           <div class="mb-3">
             <label for="condition_factor" class="form-label">Member Condition Factor:</label>
-            <input type="number" step="0.01" class="form-control" name="condition_factor" id="condition_factor" value="{{ form_data.get('condition_factor','') }}" required>
+            <input type="number" step="0.000001" class="form-control" name="condition_factor" id="condition_factor" value="{{ form_data.get('condition_factor','') }}" required>
           </div>
           <!-- Additional Loads -->
           <div class="card mt-4">
@@ -392,4 +392,3 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-
