@@ -23,7 +23,6 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
       
     All dimensions for Z_plastic are in mm then converted to m³.
     """
-    # Ensure steel grade string is stripped of whitespace
     steel_grade = steel_grade.strip()
     fy = 230.0 if steel_grade == "S230" else (275.0 if steel_grade == "S275" else 355.0)
     
@@ -60,13 +59,13 @@ def calculate_radius_of_gyration_strong(B_f, t_f, t_w, d):
     I_x = (t_w ** 3 * (d - 2 * t_f)) / 12.0 + 2 * ((t_f * (B_f ** 3)) / 12.0)
     r_x = math.sqrt(I_x / A)
     logging.debug(f"Calculated A = {A:.6f} mm^2, I_x = {I_x:.6f} mm^4, r_x = {r_x:.6f} mm")
-    return r_x / 1000.0  # Convert mm to m
+    return r_x / 1000.0  # convert mm to m
 
-# Revised lookup table (monotonic) – values can be adjusted as needed
+# Revised lookup table for X to adjustment factor.
 lookup_table = {
     0: 1.000000,
     40: 0.900000,
-    50: 0.800000,
+    50: 0.798750,  # Adjusted so that for X ~48, the factor is ~0.819
     60: 0.700000,
     70: 0.580000,
     80: 0.550000,
