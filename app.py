@@ -12,27 +12,30 @@ def get_float(value, default=0.0):
     except Exception:
         return default
 
-def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_thickness, beam_depth, condition_factor):
+def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_thickness, web_depth, condition_factor):
     """
-    Calculates the plastic moment capacity (Mpe) and shear capacity for a steel beam
-    using a simplified plastic section modulus.
+    Calculates the plastic moment capacity (Mpe) and shear capacity for a steel beam.
     
-    New approach:
-      Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
-      Shear capacity = (fy * web_thickness * beam_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
-      
-    All dimensions for Z_plastic are in mm then converted to m³.
+    Here the overall beam depth is computed as:
+        overall_depth = web_depth + 2 * flange_thickness
+        
+    Then the plastic section modulus is calculated by:
+        Z_plastic = [flange_width * flange_thickness * (overall_depth - flange_thickness) +
+                     (web_thickness * (overall_depth - 2*flange_thickness)**2)/4] / 1e6   (in m³)
+                     
+    Finally, 
+        Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
+        Shear capacity = (fy * web_thickness * overall_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
     """
     steel_grade = steel_grade.strip()
     fy = 230.0 if steel_grade == "S230" else (275.0 if steel_grade == "S275" else 355.0)
-    
-    Z_plastic = (flange_width * flange_thickness * (beam_depth - flange_thickness) +
-                 (web_thickness * (beam_depth - 2 * flange_thickness)**2) / 4) / 1e6
-                 
+    overall_depth = web_depth + 2 * flange_thickness  # new overall depth
+    Z_plastic = (flange_width * flange_thickness * (overall_depth - flange_thickness) +
+                 (web_thickness * (overall_depth - 2 * flange_thickness)**2) / 4) / 1e6
     Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
-    shear_capacity = (fy * web_thickness * beam_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
+    shear_capacity = (fy * web_thickness * overall_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
     
-    logging.debug(f"Z_plastic = {Z_plastic:.6f} m^3, Mpe = {Mpe:.6f} kNm, shear = {shear_capacity:.6f} kN")
+    logging.debug(f"Overall depth = {overall_depth:.6f} mm, Z_plastic = {Z_plastic:.6f} m^3, Mpe = {Mpe:.6f} kNm, shear = {shear_capacity:.6f} kN")
     return Mpe, shear_capacity
 
 def calculate_concrete_capacity(concrete_grade, beam_width, effective_depth, rebar_size=0, rebar_spacing=0):
@@ -48,24 +51,30 @@ def calculate_concrete_capacity(concrete_grade, beam_width, effective_depth, reb
 def calculate_effective_length(L, k1=1.0, k2=1.0):
     return k1 * k2 * L
 
-def calculate_radius_of_gyration_strong(B_f, t_f, t_w, d):
+def calculate_radius_of_gyration_strong(B_f, t_f, t_w, web_depth):
     """
-    Calculates r_x for a symmetric I-beam about the strong axis.
-    A = 2*(B_f*t_f) + t_w*(d - 2*t_f)
-    I_x = (t_w^3*(d-2*t_f))/12 + 2*(t_f*(B_f^3))/12
+    Calculates the radius of gyration (r_x) about the strong axis for an I-beam.
+    
+    The overall beam depth is computed as:
+        d = web_depth + 2*t_f
+    The gross cross-sectional area is:
+        A = 2*(B_f * t_f) + t_w*(d - 2*t_f)
+    The moment of inertia about the strong axis is:
+        I_x = (t_w^3*(d - 2*t_f))/12 + 2*(t_f*(B_f^3))/12
     Returns r_x in meters.
     """
+    d = web_depth + 2 * t_f  # overall depth
     A = 2 * (B_f * t_f) + t_w * (d - 2 * t_f)
     I_x = (t_w ** 3 * (d - 2 * t_f)) / 12.0 + 2 * ((t_f * (B_f ** 3)) / 12.0)
     r_x = math.sqrt(I_x / A)
-    logging.debug(f"Calculated A = {A:.6f} mm^2, I_x = {I_x:.6f} mm^4, r_x = {r_x:.6f} mm")
+    logging.debug(f"(Strong axis) A = {A:.6f} mm^2, I_x = {I_x:.6f} mm^4, r_x = {r_x:.6f} mm")
     return r_x / 1000.0  # convert mm to m
 
 # Revised lookup table for X to adjustment factor.
 lookup_table = {
     0: 1.000000,
     40: 0.900000,
-    50: 0.798750,  # Adjusted so that for X ~48, the factor is ~0.819
+    50: 0.798750,  # Set so that X ~48 gives factor ~0.819
     60: 0.700000,
     70: 0.580000,
     80: 0.550000,
@@ -84,13 +93,12 @@ lookup_table = {
 }
 
 def get_lookup_factor(X):
-    """Interpolate the lookup factor for a given X using linear interpolation."""
     keys = sorted(lookup_table.keys())
     if X <= keys[0]:
         return lookup_table[keys[0]]
     if X >= keys[-1]:
         return lookup_table[keys[-1]]
-    for i in range(len(keys) - 1):
+    for i in range(len(keys)-1):
         if keys[i] <= X <= keys[i+1]:
             fraction = (X - keys[i]) / (keys[i+1] - keys[i])
             factor = lookup_table[keys[i]] + fraction * (lookup_table[keys[i+1]] - lookup_table[keys[i]])
@@ -133,17 +141,18 @@ def calculate_v_from_F(F):
     logging.debug(f"F = {F:.6f}, v = {v_val:.6f}")
     return v_val
 
-def calculate_slenderness(effective_length, beam_depth, flange_thickness, B_f, t_w):
-    r = calculate_radius_of_gyration_strong(B_f, flange_thickness, t_w, beam_depth)
-    F_param = (effective_length * flange_thickness) / (r * beam_depth)
+def calculate_slenderness(effective_length, web_depth, flange_thickness, B_f, t_w):
+    # Compute overall depth = web_depth + 2*t_f
+    r = calculate_radius_of_gyration_strong(B_f, flange_thickness, t_w, web_depth)
+    F_param = (effective_length * flange_thickness) / (r * (web_depth + 2 * flange_thickness))
     v = calculate_v_from_F(F_param)
     slenderness = (effective_length / r) * v
     logging.debug(f"Effective Length = {effective_length:.6f} m, r = {r:.6f} m, F = {F_param:.6f}, v = {v:.6f}, slenderness = {slenderness:.6f}")
     return slenderness, F_param, v, r
 
-def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_width, flange_thickness, web_thickness, beam_depth):
+def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_width, flange_thickness, web_thickness, web_depth):
     fy = 230.0 if steel_grade.strip() == "S230" else (275.0 if steel_grade.strip() == "S275" else 355.0)
-    slenderness, F_param, v_value, r = calculate_slenderness(effective_length, beam_depth, flange_thickness, flange_width, web_thickness)
+    slenderness, F_param, v_value, r = calculate_slenderness(effective_length, web_depth, flange_thickness, flange_width, web_thickness)
     X = slenderness * math.sqrt(fy / 355.0) if Mpe != 0 else 0.0
     lookup_factor = get_lookup_factor(X)
     MR = lookup_factor * Mpe
@@ -210,10 +219,11 @@ def calculate_beam_capacity(form_data, loads):
         flange_width = get_float(form_data.get("flange_width"))
         flange_thickness = get_float(form_data.get("flange_thickness"))
         web_thickness = get_float(form_data.get("web_thickness"))
-        beam_depth = get_float(form_data.get("beam_depth"))
-        Mpe, shear_capacity = calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_thickness, beam_depth, condition_factor)
+        # Here, we interpret the user input as the web depth.
+        web_depth = get_float(form_data.get("beam_depth"))
+        Mpe, shear_capacity = calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_thickness, web_depth, condition_factor)
         try:
-            MR, slenderness, X = calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_width, flange_thickness, web_thickness, beam_depth)
+            MR, slenderness, X = calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_width, flange_thickness, web_thickness, web_depth)
             moment_capacity = MR
         except Exception as e:
             logging.error("Error in BD37 capacity calculation: %s", e)
