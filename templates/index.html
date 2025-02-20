@@ -187,6 +187,7 @@
               <div class="col">
                 <label for="steel_grade" class="form-label">Steel Grade:</label>
                 <select class="form-select" name="steel_grade" id="steel_grade">
+                  <option value="S230" {% if form_data.get('steel_grade') == "S230" %}selected{% endif %}>S230</option>
                   <option value="S275" {% if form_data.get('steel_grade') == "S275" %}selected{% endif %}>S275</option>
                   <option value="S355" {% if form_data.get('steel_grade') == "S355" %}selected{% endif %}>S355</option>
                 </select>
@@ -388,7 +389,7 @@
       </div>
     {% endif %}
   </div>
-  <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+
