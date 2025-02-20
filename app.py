@@ -14,26 +14,26 @@ def get_float(value, default=0.0):
 
 def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_thickness, beam_depth, condition_factor):
     """
-    Calculates moment and shear capacity for a steel beam using a simplified plastic section modulus.
-    Applies BD21/01 reduction factors.
+    Calculates the plastic moment capacity (Mpe) and shear capacity for a steel beam
+    using a simplified plastic section modulus. Applies BD21/01 reduction factors.
     Note: Shear capacity is converted to kN.
     """
     fy = 275 if steel_grade == "S275" else 355
     if flange_width <= 0 or flange_thickness <= 0 or web_thickness <= 0 or beam_depth <= 0:
         return 0, 0
-    # Plastic section modulus [m³]
+    # Plastic section modulus (Z_plastic) in m³
     Z_plastic = (flange_width * flange_thickness * (beam_depth - flange_thickness) +
                  (web_thickness * (beam_depth - 2 * flange_thickness) ** 2) / 4) / 1e6
-    moment_capacity = fy * Z_plastic / condition_factor  # kNm
-    shear_capacity = (fy * web_thickness * beam_depth / (1.73 * condition_factor)) / 1000  # kN
+    Mpe = fy * Z_plastic / condition_factor  # in kNm
+    shear_capacity = (fy * web_thickness * beam_depth / (1.73 * condition_factor)) / 1000  # in kN
 
-    # Apply BD21/01 factors (example values; adjust as needed)
+    # Apply BD21/01 factors (example multipliers; adjust as needed)
     BD21_moment_factor = 0.9
     BD21_shear_factor = 0.95
-    moment_capacity *= BD21_moment_factor
+    Mpe *= BD21_moment_factor
     shear_capacity *= BD21_shear_factor
 
-    return moment_capacity, shear_capacity
+    return Mpe, shear_capacity
 
 def calculate_concrete_capacity(concrete_grade, beam_width, effective_depth, rebar_size=0, rebar_spacing=0):
     """
@@ -44,7 +44,6 @@ def calculate_concrete_capacity(concrete_grade, beam_width, effective_depth, reb
     moment_capacity = 0.156 * fck * beam_width * effective_depth ** 2 / 1e6  # kNm
     shear_capacity = 0.6 * fck * beam_width * effective_depth / 1e3  # kN
 
-    # Apply BD37/01 factors (example values; adjust as needed)
     BD37_moment_factor = 0.95
     BD37_shear_factor = 1.0
     moment_capacity *= BD37_moment_factor
@@ -52,14 +51,41 @@ def calculate_concrete_capacity(concrete_grade, beam_width, effective_depth, reb
 
     return moment_capacity, shear_capacity
 
+def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade):
+    """
+    A simplified CS454/BD37-style adjustment for steel beams.
+    
+    Assumptions:
+      - Nominal yield stress, σ_yc, is 275 N/mm² for S275 and 355 N/mm² for S355.
+      - A reference effective length, L_ref, is assumed (example: 10 m).
+      - λ_LT = effective_length / L_ref.
+      - A simplified factor = λ_LT × sqrt(σ_yc/355).
+      - For compact sections (if factor < 1) use Mpe.
+      - Otherwise, reduced capacity MR = Mpe / factor.
+      - MR is not allowed to exceed Mpe.
+    
+    Returns:
+      MR, factor
+    """
+    sigma_yc = 275 if steel_grade == "S275" else 355
+    L_ref = 10.0  # Example reference effective length (m)
+    lambda_LT = effective_length / L_ref
+    factor = lambda_LT * math.sqrt(sigma_yc / 355)
+    if factor < 1:
+        MR = Mpe
+    else:
+        MR = Mpe / factor
+    MR = min(MR, Mpe)
+    return MR, factor
+
 def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_width=None, access_factor=None, lane_width=None):
     """
     Calculates the applied moment and shear from the default load case plus any additional loads.
     
     For HA loading:
       - Base UDL = 230*(1/span_length)^0.67  [kN/m]
-      - Effective UDL = ((Base UDL × 0.76) / (3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor
-      - HA KEL = ((82 × 0.76) / (3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor  
+      - Effective UDL = ((Base UDL × 0.76)/(3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor
+      - HA KEL = ((82 × 0.76)/(3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor  
         (82 kN is constant)
       
       Then:
@@ -69,11 +95,11 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
     For HB loading, fixed values are used.
     """
     if loading_type == "HA":
-        base_udl = 230 * (1 / span_length)**0.67  # kN/m; ~43.7 kN/m for a span of 11.9 m
+        base_udl = 230 * (1 / span_length)**0.67  # kN/m; ~43.7 kN/m for span ~11.9 m
         if loaded_width is None or loaded_width <= 0:
-            loaded_width = 3.65  # default standard width
+            loaded_width = 3.65
         if access_factor is None:
-            access_factor = 1.3  # default to company access
+            access_factor = 1.3
         effective_udl = ((base_udl * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
 
         base_kel = 82  # kN constant
@@ -113,9 +139,9 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
 
 def calculate_beam_capacity(form_data, loads):
     """
-    Reads input parameters, calculates the beam's capacity (with effective length reductions),
-    and computes the applied loads using the effective UDL and HA KEL formulas.
-    Also classifies the HA/HB load as an applied live load.
+    Reads input parameters, calculates the beam's capacity, and computes the applied loads.
+    For steel, it computes the plastic moment capacity (Mpe) then applies a CS454/BD37-style adjustment.
+    The applied load (HA/HB) is classified as an applied live load (dead load moment = 0).
     """
     material = form_data.get("material")
     condition_factor = get_float(form_data.get("condition_factor"), 1.0)
@@ -128,15 +154,21 @@ def calculate_beam_capacity(form_data, loads):
     access_str = form_data.get("access_type", "Company")
     access_factor = 1.5 if access_str.lower() == "public" else 1.3
     
-    # Capacity calculation based on material:
+    # Capacity calculation:
     if material == "Steel":
         steel_grade = form_data.get("steel_grade")
         flange_width = get_float(form_data.get("flange_width"))
         flange_thickness = get_float(form_data.get("flange_thickness"))
         web_thickness = get_float(form_data.get("web_thickness"))
         beam_depth = get_float(form_data.get("beam_depth"))
-        moment_capacity, shear_capacity = calculate_steel_capacity(
+        Mpe, shear_capacity = calculate_steel_capacity(
             steel_grade, flange_width, flange_thickness, web_thickness, beam_depth, condition_factor)
+        try:
+            MR, lt_factor = calculate_bd37_moment_capacity(Mpe, effective_member_length, steel_grade)
+            moment_capacity = MR  # Use the reduced capacity per CS454/BD37
+        except Exception as e:
+            logging.error("Error in BD37/01 capacity calculation: %s", e)
+            moment_capacity = Mpe
     elif material == "Concrete":
         concrete_grade = form_data.get("concrete_grade")
         beam_width = get_float(form_data.get("beam_width"))
@@ -157,7 +189,7 @@ def calculate_beam_capacity(form_data, loads):
     utilisation_ratio = applied_moment / moment_capacity if moment_capacity > 0 else float('inf')
     pass_fail = "Pass" if moment_capacity >= applied_moment and shear_capacity >= applied_shear else "Fail"
 
-    # Classify HA/HB load as applied live load (dead load moment is zero)
+    # Classify HA/HB loads as applied live loads (dead load moment = 0)
     applied_live_moment = round(applied_moment, 2)
     applied_dead_moment = 0
 
@@ -188,7 +220,6 @@ def calculate_beam_capacity(form_data, loads):
 
 @app.route("/")
 def home():
-    # Pass an empty form_data dictionary if not provided
     return render_template("index.html", form_data={})
 
 @app.route("/calculate", methods=["POST"])
@@ -211,7 +242,6 @@ def calculate():
             })
     
     result = calculate_beam_capacity(form_data, additional_loads)
-    # Pass the form_data back so inputs remain populated.
     return render_template("index.html", result=result, form_data=form_data)
 
 if __name__ == "__main__":

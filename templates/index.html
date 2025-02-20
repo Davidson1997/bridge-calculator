@@ -6,187 +6,167 @@
   <title>Bridge Capacity Calculator</title>
   <!-- Bootstrap CSS -->
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-  <!-- Google Font -->
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <style>
-    body {
-      background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
-      font-family: 'Montserrat', sans-serif;
-    }
-    .container {
-      margin-top: 40px;
-    }
-    .hero {
-      background: #1f2937;
-      color: #fff;
-      padding: 40px 20px;
-      text-align: center;
-      border-radius: 10px;
-      margin-bottom: 30px;
-    }
-    .hero h1 {
-      font-weight: 600;
-      font-size: 2.5rem;
-    }
-    .card-header {
-      font-weight: 600;
-    }
-    .btn-primary {
-      background-color: #1f2937;
-      border: none;
-    }
-    .btn-primary:hover {
-      background-color: #111827;
-    }
-    .form-control {
-      border-radius: 5px;
-      box-shadow: none;
-      border-color: #cbd5e0;
-    }
-    .form-control:focus {
-      border-color: #1f2937;
-      box-shadow: 0 0 0 0.2rem rgba(31,41,55,0.25);
-    }
-    .summary-table th, .summary-table td {
-      font-size: 1.1rem;
-    }
-    .remove-btn {
-      background-color: #e3342f;
-      color: #fff;
-      border: none;
-    }
-    .remove-btn:hover {
-      background-color: #cc1f1a;
-    }
+    body { background-color: #e3f2fd; }
+    .container { margin-top: 30px; }
+    .remove-btn { background-color: red; color: white; border: none; }
+    .remove-btn:hover { background-color: darkred; }
   </style>
+  <script>
+    // Toggle between steel and concrete input fields
+    function updateMaterialOptions() {
+      var material = document.getElementById("material").value;
+      document.getElementById("steel-options").classList.add("d-none");
+      document.getElementById("concrete-options").classList.add("d-none");
+      if (material === "Steel") {
+        document.getElementById("steel-options").classList.remove("d-none");
+      } else if (material === "Concrete") {
+        document.getElementById("concrete-options").classList.remove("d-none");
+      }
+    }
+    // Toggle loaded carriageway inputs based on loading type (HA/HB)
+    function updateLoadingTypeOptions() {
+      var loadingType = document.getElementById("loading_type").value;
+      if (loadingType === "HA" || loadingType === "HB") {
+        document.getElementById("loaded-access-group").style.display = "block";
+      } else {
+        document.getElementById("loaded-access-group").style.display = "none";
+      }
+    }
+    // Add a new row for an additional load
+    function addLoad() {
+      var table = document.getElementById("loadTable").getElementsByTagName('tbody')[0];
+      var row = table.insertRow();
+      row.innerHTML = `
+        <td><input type="text" class="form-control" name="load_desc[]" required></td>
+        <td><input type="number" step="0.1" class="form-control" name="load_value[]" required></td>
+        <td>
+          <select class="form-control" name="load_type[]">
+            <option value="dead">Dead Load</option>
+            <option value="live">Live Load</option>
+          </select>
+        </td>
+        <td>
+          <select class="form-control" name="load_distribution[]">
+            <option value="udl">UDL</option>
+            <option value="point">Point</option>
+          </select>
+        </td>
+        <td><button type="button" class="btn btn-danger remove-btn" onclick="removeLoad(this)">Remove</button></td>
+      `;
+    }
+    // Remove an additional load row
+    function removeLoad(button) {
+      var row = button.parentNode.parentNode;
+      row.parentNode.removeChild(row);
+    }
+    window.onload = function() {
+      updateMaterialOptions();
+      updateLoadingTypeOptions();
+    }
+  </script>
 </head>
 <body>
   <div class="container">
-    <div class="hero">
-      <h1>Bridge Capacity Calculator</h1>
-      <p>Assess your bridge design quickly with our intuitive tool</p>
-    </div>
-    
     <div class="card">
       <div class="card-header bg-primary text-white">
-        Input Parameters
+        <h2>Bridge Capacity Calculator</h2>
       </div>
       <div class="card-body">
         <form action="/calculate" method="post">
-          <div class="form-row">
-            <div class="form-group col-md-6">
-              <label for="bridge_type">Bridge Type:</label>
-              <select class="form-control" name="bridge_type" id="bridge_type" required>
-                <option value="Simply Supported" {% if form_data.get('bridge_type') == "Simply Supported" %}selected{% endif %}>Simply Supported</option>
-                <option value="Cantilever" {% if form_data.get('bridge_type') == "Cantilever" %}selected{% endif %}>Cantilever</option>
-              </select>
-            </div>
-            <div class="form-group col-md-6">
-              <label for="span_length">Span Length (m):</label>
-              <input type="number" step="0.1" class="form-control" name="span_length" id="span_length" value="{{ form_data.get('span_length','') }}" required>
-            </div>
+          <div class="form-group">
+            <label for="bridge_type">Bridge Type:</label>
+            <select class="form-control" name="bridge_type" id="bridge_type" required>
+              <option value="Simply Supported" {% if form_data.get('bridge_type') == "Simply Supported" %}selected{% endif %}>Simply Supported</option>
+              <option value="Cantilever" {% if form_data.get('bridge_type') == "Cantilever" %}selected{% endif %}>Cantilever</option>
+            </select>
           </div>
-          <div class="form-row">
-            <div class="form-group col-md-6">
-              <label for="effective_member_length">Effective Member Length (m):</label>
-              <input type="number" step="0.1" class="form-control" name="effective_member_length" id="effective_member_length" value="{{ form_data.get('effective_member_length','') }}" required>
-            </div>
-            <div class="form-group col-md-6">
-              <label for="material">Material:</label>
-              <select class="form-control" name="material" id="material" onchange="updateMaterialOptions()" required>
-                <option value="">-- Select Material --</option>
-                <option value="Steel" {% if form_data.get('material') == "Steel" %}selected{% endif %}>Steel</option>
-                <option value="Concrete" {% if form_data.get('material') == "Concrete" %}selected{% endif %}>Concrete</option>
-              </select>
-            </div>
+          <div class="form-group">
+            <label for="span_length">Span Length (m):</label>
+            <input type="number" step="0.1" class="form-control" name="span_length" id="span_length" value="{{ form_data.get('span_length','') }}" required>
           </div>
-          
+          <div class="form-group">
+            <label for="effective_member_length">Effective Member Length (m):</label>
+            <input type="number" step="0.1" class="form-control" name="effective_member_length" id="effective_member_length" value="{{ form_data.get('effective_member_length','') }}" required>
+          </div>
+          <div class="form-group">
+            <label for="material">Material:</label>
+            <select class="form-control" name="material" id="material" onchange="updateMaterialOptions()" required>
+              <option value="Steel" {% if not form_data.get('material') or form_data.get('material') == "Steel" %}selected{% endif %}>Steel</option>
+              <option value="Concrete" {% if form_data.get('material') == "Concrete" %}selected{% endif %}>Concrete</option>
+            </select>
+          </div>
           <!-- Steel Options -->
           <div id="steel-options" class="d-none">
-            <div class="form-row">
-              <div class="form-group col-md-4">
-                <label for="steel_grade">Steel Grade:</label>
-                <select class="form-control" name="steel_grade" id="steel_grade">
-                  <option value="S275" {% if form_data.get('steel_grade') == "S275" %}selected{% endif %}>S275</option>
-                  <option value="S355" {% if form_data.get('steel_grade') == "S355" %}selected{% endif %}>S355</option>
-                </select>
-              </div>
-              <div class="form-group col-md-4">
-                <label for="flange_width">Flange Width (mm):</label>
-                <input type="number" step="0.1" class="form-control" name="flange_width" id="flange_width" value="{{ form_data.get('flange_width','') }}">
-              </div>
-              <div class="form-group col-md-4">
-                <label for="flange_thickness">Flange Thickness (mm):</label>
-                <input type="number" step="0.1" class="form-control" name="flange_thickness" id="flange_thickness" value="{{ form_data.get('flange_thickness','') }}">
-              </div>
+            <div class="form-group">
+              <label for="steel_grade">Steel Grade:</label>
+              <select class="form-control" name="steel_grade" id="steel_grade">
+                <option value="S275" {% if form_data.get('steel_grade') == "S275" %}selected{% endif %}>S275</option>
+                <option value="S355" {% if form_data.get('steel_grade') == "S355" %}selected{% endif %}>S355</option>
+              </select>
             </div>
-            <div class="form-row">
-              <div class="form-group col-md-6">
-                <label for="web_thickness">Web Thickness (mm):</label>
-                <input type="number" step="0.1" class="form-control" name="web_thickness" id="web_thickness" value="{{ form_data.get('web_thickness','') }}">
-              </div>
-              <div class="form-group col-md-6">
-                <label for="beam_depth">Beam Depth (mm):</label>
-                <input type="number" step="0.1" class="form-control" name="beam_depth" id="beam_depth" value="{{ form_data.get('beam_depth','') }}">
-              </div>
+            <div class="form-group">
+              <label for="flange_width">Flange Width (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="flange_width" id="flange_width" value="{{ form_data.get('flange_width','') }}">
+            </div>
+            <div class="form-group">
+              <label for="flange_thickness">Flange Thickness (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="flange_thickness" id="flange_thickness" value="{{ form_data.get('flange_thickness','') }}">
+            </div>
+            <div class="form-group">
+              <label for="web_thickness">Web Thickness (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="web_thickness" id="web_thickness" value="{{ form_data.get('web_thickness','') }}">
+            </div>
+            <div class="form-group">
+              <label for="beam_depth">Beam Depth (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="beam_depth" id="beam_depth" value="{{ form_data.get('beam_depth','') }}">
             </div>
           </div>
-          
           <!-- Concrete Options -->
           <div id="concrete-options" class="d-none">
-            <div class="form-row">
-              <div class="form-group col-md-6">
-                <label for="concrete_grade">Concrete Grade:</label>
-                <select class="form-control" name="concrete_grade" id="concrete_grade">
-                  <option value="C32/40" {% if form_data.get('concrete_grade') == "C32/40" %}selected{% endif %}>C32/40</option>
-                  <option value="C40/50" {% if form_data.get('concrete_grade') == "C40/50" %}selected{% endif %}>C40/50</option>
-                </select>
-              </div>
-              <div class="form-group col-md-6">
-                <label for="beam_width">Beam Width (mm):</label>
-                <input type="number" step="0.1" class="form-control" name="beam_width" id="beam_width" value="{{ form_data.get('beam_width','') }}">
-              </div>
+            <div class="form-group">
+              <label for="concrete_grade">Concrete Grade:</label>
+              <select class="form-control" name="concrete_grade" id="concrete_grade">
+                <option value="C32/40" {% if form_data.get('concrete_grade') == "C32/40" %}selected{% endif %}>C32/40</option>
+                <option value="C40/50" {% if form_data.get('concrete_grade') == "C40/50" %}selected{% endif %}>C40/50</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="beam_width">Beam Width (mm):</label>
+              <input type="number" step="0.1" class="form-control" name="beam_width" id="beam_width" value="{{ form_data.get('beam_width','') }}">
             </div>
             <div class="form-group">
               <label for="effective_depth">Effective Depth (mm):</label>
               <input type="number" step="0.1" class="form-control" name="effective_depth" id="effective_depth" value="{{ form_data.get('effective_depth','') }}">
             </div>
           </div>
-          
-          <div class="form-row">
-            <div class="form-group col-md-6">
-              <label for="loading_type">Loading Type:</label>
-              <select class="form-control" name="loading_type" id="loading_type" onchange="updateLoadingTypeOptions()" required>
-                <option value="HA" {% if form_data.get('loading_type') == "HA" %}selected{% endif %}>HA Loading</option>
-                <option value="HB" {% if form_data.get('loading_type') == "HB" %}selected{% endif %}>HB Loading</option>
+          <div class="form-group">
+            <label for="loading_type">Loading Type:</label>
+            <select class="form-control" name="loading_type" id="loading_type" onchange="updateLoadingTypeOptions()" required>
+              <option value="HA" {% if form_data.get('loading_type') == "HA" %}selected{% endif %}>HA Loading</option>
+              <option value="HB" {% if form_data.get('loading_type') == "HB" %}selected{% endif %}>HB Loading</option>
+            </select>
+          </div>
+          <!-- For HA/HB loading, new inputs -->
+          <div id="loaded-access-group">
+            <div class="form-group">
+              <label for="loaded_width">Loaded Carriageway Width (m):</label>
+              <input type="number" step="0.1" class="form-control" name="loaded_width" id="loaded_width" placeholder="e.g., 7.3" value="{{ form_data.get('loaded_width','') }}">
+            </div>
+            <div class="form-group">
+              <label for="access_type">Access Type:</label>
+              <select class="form-control" name="access_type" id="access_type">
+                <option value="Company" {% if form_data.get('access_type') == "Company" %}selected{% endif %}>Company (×1.3)</option>
+                <option value="Public" {% if form_data.get('access_type') == "Public" %}selected{% endif %}>Public (×1.5)</option>
               </select>
             </div>
           </div>
-          
-          <!-- For HA/HB loading, new inputs -->
-          <div id="loaded-access-group">
-            <div class="form-row">
-              <div class="form-group col-md-6">
-                <label for="loaded_width">Loaded Carriageway Width (m):</label>
-                <input type="number" step="0.1" class="form-control" name="loaded_width" id="loaded_width" placeholder="e.g., 7.3" value="{{ form_data.get('loaded_width','') }}">
-              </div>
-              <div class="form-group col-md-6">
-                <label for="access_type">Access Type:</label>
-                <select class="form-control" name="access_type" id="access_type">
-                  <option value="Company" {% if form_data.get('access_type') == "Company" %}selected{% endif %}>Company (×1.3)</option>
-                  <option value="Public" {% if form_data.get('access_type') == "Public" %}selected{% endif %}>Public (×1.5)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          
           <!-- For HA loading, lane width (used for HA KEL calculation) -->
           <div class="form-group" id="lane-width-group">
             <label for="lane_width">Lane Width (m):</label>
             <input type="number" step="0.1" class="form-control" name="lane_width" id="lane_width" placeholder="e.g., 3.65" value="{{ form_data.get('lane_width','') }}">
           </div>
-          
           <div class="form-group">
             <label for="condition_factor">Member Condition Factor:</label>
             <input type="number" step="0.01" class="form-control" name="condition_factor" id="condition_factor" value="{{ form_data.get('condition_factor','') }}" required>
@@ -244,7 +224,7 @@
           </table>
         </div>
       </div>
-      
+
       <!-- Detailed Calculation Results -->
       <div class="card mt-4">
         <div class="card-header bg-success text-white">
@@ -263,7 +243,7 @@
           </table>
         </div>
       </div>
-      
+
       <!-- Bridge Diagram (SVG) -->
       <div class="card mt-4">
         <div class="card-header bg-info text-white">
@@ -326,4 +306,5 @@
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>
+
 
