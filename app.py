@@ -23,11 +23,11 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
         return 0, 0
     # Plastic section modulus (Z_plastic) in m³
     Z_plastic = (flange_width * flange_thickness * (beam_depth - flange_thickness) +
-                 (web_thickness * (beam_depth - 2 * flange_thickness) ** 2) / 4) / 1e6
+                 (web_thickness * (beam_depth - 2 * flange_thickness)**2) / 4) / 1e6
     Mpe = fy * Z_plastic / condition_factor  # in kNm
     shear_capacity = (fy * web_thickness * beam_depth / (1.73 * condition_factor)) / 1000  # in kN
 
-    # Apply BD21/01 factors (example multipliers; adjust as needed)
+    # Apply BD21/01 factors (example multipliers)
     BD21_moment_factor = 0.9
     BD21_shear_factor = 0.95
     Mpe *= BD21_moment_factor
@@ -41,7 +41,7 @@ def calculate_concrete_capacity(concrete_grade, beam_width, effective_depth, reb
     Applies BD37/01 factors.
     """
     fck = 32 if concrete_grade == "C32/40" else 40
-    moment_capacity = 0.156 * fck * beam_width * effective_depth ** 2 / 1e6  # kNm
+    moment_capacity = 0.156 * fck * beam_width * effective_depth**2 / 1e6  # kNm
     shear_capacity = 0.6 * fck * beam_width * effective_depth / 1e3  # kN
 
     BD37_moment_factor = 0.95
@@ -51,67 +51,75 @@ def calculate_concrete_capacity(concrete_grade, beam_width, effective_depth, reb
 
     return moment_capacity, shear_capacity
 
-def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade):
+# Effective length calculation per BS5400-3:
+def calculate_effective_length(L, k1=1.0, k2=1.0):
+    return k1 * k2 * L
+
+# Compactness check:
+def is_section_compact(steel_grade, flange_width, flange_thickness, web_thickness, beam_depth):
     """
-    A simplified CS454/BD37-style adjustment for steel beams.
-    
-    Assumptions:
-      - Nominal yield stress, σ_yc, is 275 N/mm² for S275 and 355 N/mm² for S355.
-      - A reference effective length, L_ref, is assumed (example: 10 m).
-      - λ_LT = effective_length / L_ref.
-      - A simplified factor = λ_LT × sqrt(σ_yc/355).
-      - For compact sections (if factor < 1) use Mpe.
-      - Otherwise, reduced capacity MR = Mpe / factor.
-      - MR is not allowed to exceed Mpe.
-    
-    Returns:
-      MR, factor
+    Checks whether the section is compact.
+    Flange is compact if:
+       flange_width <= 7 * flange_thickness * sqrt(355 / σ_y)
+    Web is compact if:
+       beam_depth <= 28 * web_thickness * sqrt(355 / σ_y)
+    σ_y is 275 for S275 and 355 for S355.
     """
-    sigma_yc = 275 if steel_grade == "S275" else 355
-    L_ref = 10.0  # Example reference effective length (m)
-    lambda_LT = effective_length / L_ref
-    factor = lambda_LT * math.sqrt(sigma_yc / 355)
-    if factor < 1:
-        MR = Mpe
+    fy = 275 if steel_grade == "S275" else 355
+    flange_limit = 7 * flange_thickness * math.sqrt(355 / fy)
+    web_limit = 28 * web_thickness * math.sqrt(355 / fy)
+    return (flange_width <= flange_limit) and (beam_depth <= web_limit)
+
+# Slenderness parameter calculation:
+def calculate_slenderness(effective_length, r, k4, n, v):
+    return (effective_length / r) * k4 * n * v
+
+# BD37/01-style moment capacity adjustment:
+def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_width, flange_thickness, web_thickness, beam_depth):
+    """
+    Adjusts Mpe using a simplified BS5400-3 approach:
+      1. Check section compactness.
+      2. Calculate slenderness parameter:
+         λ = (effective_length / r) * k4 * n * v
+         (with r, k4, n, and v as provided placeholders)
+      3. If λ > 1, apply Mult = 1/λ; else Mult = 1.
+      4. Define Mmin = 0.8 * Mpe.
+      5. Set design moment capacity MR = max(Mmin, Mult * Mpe) but not exceeding Mpe.
+    """
+    # Check compactness:
+    compact = is_section_compact(steel_grade, flange_width, flange_thickness, web_thickness, beam_depth)
+    # For r, we use a placeholder approximation (you should replace this with a proper calculation):
+    r = beam_depth / 30  # in m (placeholder)
+    # Placeholder values for k4, n, and v:
+    k4 = 1.0
+    n = 1.0
+    v = 1.0
+    slenderness = calculate_slenderness(effective_length, r, k4, n, v)
+    if slenderness > 1.0:
+        Mult = 1.0 / slenderness
     else:
-        MR = Mpe / factor
+        Mult = 1.0
+    Mmin = 0.8 * Mpe
+    MR = max(Mmin, Mult * Mpe)
     MR = min(MR, Mpe)
-    return MR, factor
+    return MR, slenderness
 
 def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_width=None, access_factor=None, lane_width=None):
-    """
-    Calculates the applied moment and shear from the default load case plus any additional loads.
-    
-    For HA loading:
-      - Base UDL = 230*(1/span_length)^0.67  [kN/m]
-      - Effective UDL = ((Base UDL × 0.76)/(3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor
-      - HA KEL = ((82 × 0.76)/(3.65/2.5)) × (Loaded Carriageway Width/2.5) × Access Factor  
-        (82 kN is constant)
-      
-      Then:
-          Applied Moment = (Effective UDL × L²)/8 + (HA KEL × L)/4
-          Applied Shear  = (Effective UDL × L)/2 + (HA KEL)/2
-          
-    For HB loading, fixed values are used.
-    """
     if loading_type == "HA":
-        base_udl = 230 * (1 / span_length)**0.67  # kN/m; ~43.7 kN/m for span ~11.9 m
+        base_udl = 230 * (1 / span_length)**0.67
         if loaded_width is None or loaded_width <= 0:
             loaded_width = 3.65
         if access_factor is None:
             access_factor = 1.3
         effective_udl = ((base_udl * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
-
-        base_kel = 82  # kN constant
+        base_kel = 82
         kel = ((base_kel * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
-
         default_loads = {"base_udl": base_udl, "effective_udl": effective_udl, "kel": kel}
         applied_moment = (effective_udl * span_length**2) / 8 + (kel * span_length) / 4
         applied_shear = (effective_udl * span_length) / 2 + (kel) / 2
-
     elif loading_type == "HB":
-        udl = 45  # kN/m
-        point_load = 180  # kN
+        udl = 45
+        point_load = 180
         if loaded_width is not None and access_factor is not None:
             effective_udl = ((udl * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
         else:
@@ -138,64 +146,58 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
     return applied_moment, applied_shear, default_loads
 
 def calculate_beam_capacity(form_data, loads):
-    """
-    Reads input parameters, calculates the beam's capacity, and computes the applied loads.
-    For steel, it computes the plastic moment capacity (Mpe) then applies a CS454/BD37-style adjustment.
-    The applied load (HA/HB) is classified as an applied live load (dead load moment = 0).
-    """
     material = form_data.get("material")
     condition_factor = get_float(form_data.get("condition_factor"), 1.0)
     span_length = get_float(form_data.get("span_length"))
-    effective_member_length = get_float(form_data.get("effective_member_length"), span_length)
+    L_actual = get_float(form_data.get("effective_member_length"), span_length)
+    k1 = get_float(form_data.get("k1"), 1.0)
+    k2 = get_float(form_data.get("k2"), 1.0)
+    effective_length = calculate_effective_length(L_actual, k1, k2)
     loading_type = form_data.get("loading_type")
     
-    # Retrieve inputs for loaded carriageway and access type:
     loaded_width = get_float(form_data.get("loaded_width"), 3.65)
     access_str = form_data.get("access_type", "Company")
     access_factor = 1.5 if access_str.lower() == "public" else 1.3
-    
-    # Capacity calculation:
+
     if material == "Steel":
         steel_grade = form_data.get("steel_grade")
         flange_width = get_float(form_data.get("flange_width"))
         flange_thickness = get_float(form_data.get("flange_thickness"))
         web_thickness = get_float(form_data.get("web_thickness"))
         beam_depth = get_float(form_data.get("beam_depth"))
-        Mpe, shear_capacity = calculate_steel_capacity(
-            steel_grade, flange_width, flange_thickness, web_thickness, beam_depth, condition_factor)
+        Mpe, shear_capacity = calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_thickness, beam_depth, condition_factor)
         try:
-            MR, lt_factor = calculate_bd37_moment_capacity(Mpe, effective_member_length, steel_grade)
-            moment_capacity = MR  # Use the reduced capacity per CS454/BD37
+            MR, slenderness = calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_width, flange_thickness, web_thickness, beam_depth)
+            moment_capacity = MR
         except Exception as e:
-            logging.error("Error in BD37/01 capacity calculation: %s", e)
+            logging.error("Error in BD37 capacity calculation: %s", e)
             moment_capacity = Mpe
     elif material == "Concrete":
         concrete_grade = form_data.get("concrete_grade")
         beam_width = get_float(form_data.get("beam_width"))
         effective_depth = get_float(form_data.get("effective_depth"))
-        moment_capacity, shear_capacity = calculate_concrete_capacity(
-            concrete_grade, beam_width, effective_depth)
+        moment_capacity, shear_capacity = calculate_concrete_capacity(concrete_grade, beam_width, effective_depth)
+        effective_length = L_actual
     else:
         moment_capacity, shear_capacity = 0, 0
 
-    # Apply effective length reduction if effective_member_length > span_length:
     reduction_factor = 1.0
-    if effective_member_length > span_length:
-        reduction_factor = span_length / effective_member_length
+    if effective_length < span_length:
+        reduction_factor = effective_length / span_length
         moment_capacity *= reduction_factor
 
-    applied_moment, applied_shear, default_loads = calculate_applied_loads(
-        span_length, loading_type, loads, loaded_width, access_factor)
+    applied_moment, applied_shear, default_loads = calculate_applied_loads(span_length, loading_type, loads, loaded_width, access_factor)
     utilisation_ratio = applied_moment / moment_capacity if moment_capacity > 0 else float('inf')
     pass_fail = "Pass" if moment_capacity >= applied_moment and shear_capacity >= applied_shear else "Fail"
 
-    # Classify HA/HB loads as applied live loads (dead load moment = 0)
     applied_live_moment = round(applied_moment, 2)
     applied_dead_moment = 0
 
     result = {
         "Span Length (m)": span_length,
-        "Effective Member Length (m)": effective_member_length,
+        "Effective Member Length (m)": effective_length,
+        "k1": k1,
+        "k2": k2,
         "Reduction Factor": round(reduction_factor, 3),
         "Moment Capacity (kNm)": round(moment_capacity, 2),
         "Shear Capacity (kN)": round(shear_capacity, 2),
@@ -225,7 +227,6 @@ def home():
 @app.route("/calculate", methods=["POST"])
 def calculate():
     form_data = request.form.to_dict()
-    
     additional_loads = []
     load_desc_list = request.form.getlist("load_desc[]")
     load_value_list = request.form.getlist("load_value[]")

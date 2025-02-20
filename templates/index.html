@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bridge Capacity Calculator</title>
   <!-- Bootstrap 5 CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
   <!-- Google Font -->
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
   <style>
     body {
       background: linear-gradient(135deg, #f7fafc, #e2e8f0);
@@ -59,9 +59,6 @@
       border-color: #2d3748;
       box-shadow: 0 0 0 0.2rem rgba(45,55,72,0.25);
     }
-    .summary-table th, .summary-table td {
-      font-size: 1.1rem;
-    }
     .remove-btn {
       background-color: #e53e3e;
       color: #fff;
@@ -73,22 +70,22 @@
     }
   </style>
   <script>
-    // Toggle between steel and concrete input sections
     function updateMaterialOptions() {
       var material = document.getElementById("material").value;
       if(material === "Steel"){
         document.getElementById("steel-options").classList.remove("d-none");
         document.getElementById("concrete-options").classList.add("d-none");
+        document.getElementById("effective-length-factors").classList.remove("d-none");
       } else if(material === "Concrete"){
         document.getElementById("concrete-options").classList.remove("d-none");
         document.getElementById("steel-options").classList.add("d-none");
+        document.getElementById("effective-length-factors").classList.add("d-none");
       } else {
-        // If no material selected, hide both.
         document.getElementById("steel-options").classList.add("d-none");
         document.getElementById("concrete-options").classList.add("d-none");
+        document.getElementById("effective-length-factors").classList.add("d-none");
       }
     }
-    // Toggle loaded carriageway inputs based on loading type (HA/HB)
     function updateLoadingTypeOptions() {
       var loadingType = document.getElementById("loading_type").value;
       if (loadingType === "HA" || loadingType === "HB") {
@@ -97,7 +94,6 @@
         document.getElementById("loaded-access-group").style.display = "none";
       }
     }
-    // Add a new row for an additional load
     function addLoad() {
       var table = document.getElementById("loadTable").getElementsByTagName('tbody')[0];
       var row = table.insertRow();
@@ -119,7 +115,6 @@
         <td><button type="button" class="btn btn-danger remove-btn" onclick="removeLoad(this)">Remove</button></td>
       `;
     }
-    // Remove an additional load row
     function removeLoad(button) {
       var row = button.parentNode.parentNode;
       row.parentNode.removeChild(row);
@@ -132,12 +127,10 @@
 </head>
 <body>
   <div class="container">
-    <!-- Hero Section -->
     <div class="hero">
       <h1>Bridge Capacity Calculator</h1>
       <p>Modern tool for rapid bridge design assessment</p>
     </div>
-
     <div class="card">
       <div class="card-header">
         Input Parameters
@@ -157,8 +150,28 @@
               <input type="number" step="0.1" class="form-control" name="span_length" id="span_length" value="{{ form_data.get('span_length','') }}" required>
             </div>
             <div class="col">
-              <label for="effective_member_length" class="form-label">Effective Member Length (m):</label>
+              <label for="effective_member_length" class="form-label">Actual Span (m):</label>
               <input type="number" step="0.1" class="form-control" name="effective_member_length" id="effective_member_length" value="{{ form_data.get('effective_member_length','') }}" required>
+            </div>
+          </div>
+          <div id="effective-length-factors" class="mb-3">
+            <h5>Effective Length Factors (for steel beams)</h5>
+            <div class="row">
+              <div class="col">
+                <label for="k1" class="form-label">k₁ (Support Rotation):</label>
+                <select class="form-select" name="k1" id="k1">
+                  <option value="1.0" {% if form_data.get('k1') == "1.0" or not form_data.get('k1') %}selected{% endif %}>Free Rotation (1.0)</option>
+                  <option value="0.85" {% if form_data.get('k1') == "0.85" %}selected{% endif %}>Partially Restrained (0.85)</option>
+                  <option value="0.7" {% if form_data.get('k1') == "0.7" %}selected{% endif %}>Fully Restrained (0.7)</option>
+                </select>
+              </div>
+              <div class="col">
+                <label for="k2" class="form-label">k₂ (Load Application):</label>
+                <select class="form-select" name="k2" id="k2">
+                  <option value="1.0" {% if form_data.get('k2') == "1.0" or not form_data.get('k2') %}selected{% endif %}>Bottom Flange (1.0)</option>
+                  <option value="1.2" {% if form_data.get('k2') == "1.2" %}selected{% endif %}>Top Flange (1.2)</option>
+                </select>
+              </div>
             </div>
           </div>
           <div class="mb-3">
@@ -168,7 +181,6 @@
               <option value="Concrete" {% if form_data.get('material') == "Concrete" %}selected{% endif %}>Concrete</option>
             </select>
           </div>
-          
           <!-- Steel Options -->
           <div id="steel-options" class="mb-3">
             <div class="row mb-3">
@@ -199,7 +211,6 @@
               </div>
             </div>
           </div>
-          
           <!-- Concrete Options -->
           <div id="concrete-options" class="mb-3">
             <div class="row mb-3">
@@ -220,7 +231,6 @@
               <input type="number" step="0.1" class="form-control" name="effective_depth" id="effective_depth" value="{{ form_data.get('effective_depth','') }}">
             </div>
           </div>
-          
           <div class="mb-3">
             <label for="loading_type" class="form-label">Loading Type:</label>
             <select class="form-select" name="loading_type" id="loading_type" onchange="updateLoadingTypeOptions()" required>
@@ -228,7 +238,6 @@
               <option value="HB" {% if form_data.get('loading_type') == "HB" %}selected{% endif %}>HB Loading</option>
             </select>
           </div>
-          
           <!-- For HA/HB loading, new inputs -->
           <div id="loaded-access-group" class="mb-3">
             <div class="row">
@@ -245,18 +254,14 @@
               </div>
             </div>
           </div>
-          
-          <!-- For HA loading, lane width (used for HA KEL calculation) -->
           <div class="mb-3" id="lane-width-group">
             <label for="lane_width" class="form-label">Lane Width (m):</label>
             <input type="number" step="0.1" class="form-control" name="lane_width" id="lane_width" placeholder="e.g., 3.65" value="{{ form_data.get('lane_width','') }}">
           </div>
-          
           <div class="mb-3">
             <label for="condition_factor" class="form-label">Member Condition Factor:</label>
             <input type="number" step="0.01" class="form-control" name="condition_factor" id="condition_factor" value="{{ form_data.get('condition_factor','') }}" required>
           </div>
-          
           <!-- Additional Loads -->
           <div class="card mt-4">
             <div class="card-header">
@@ -280,7 +285,6 @@
               <button type="button" class="btn btn-secondary" onclick="addLoad()">+ Add Load</button>
             </div>
           </div>
-          
           <button type="submit" class="btn btn-primary btn-block mt-4">Calculate</button>
         </form>
       </div>
@@ -389,3 +393,4 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+
