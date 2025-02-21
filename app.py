@@ -16,10 +16,10 @@ def get_additional_load_sf(load_material):
     """Return the safety factor for an additional load based on its material."""
     if not load_material:
         return 1.0
-    load_material = load_material.strip().lower()
-    if load_material == "steel":
+    material = load_material.strip().lower()
+    if material == "steel":
         return 1.05
-    elif load_material in ["concrete", "timber"]:
+    elif material in ["concrete", "timber"]:
         return 1.15
     else:
         return 1.0
@@ -166,7 +166,6 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
     return MR, slenderness, X
 
 def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_width=None, access_factor=None, lane_width=None):
-    # Base loads from HA or HB (these remain unchanged)
     if loading_type == "HA":
         base_udl = 230 * (1 / span_length)**0.67
         if loaded_width is None or loaded_width <= 0:
@@ -197,7 +196,6 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
     additional_dead = 0.0
     additional_live = 0.0
     additional_shear = 0.0
-    # Process each additional load individually:
     for load in additional_loads:
         try:
             load_value = load.get("value", 0)
@@ -205,7 +203,7 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
             if not distribution:
                 distribution = ""
             load_type_str = load.get("type", "").lower() or "live"
-            # New: get load material for the additional load (default to "steel")
+            # Get the load material for safety factor
             load_material = load.get("load_material", "steel").lower()
             if distribution == "udl":
                 add_moment = (load_value * span_length**2) / 8
@@ -271,8 +269,7 @@ def calculate_beam_capacity(form_data, loads):
 
     applied_moment, applied_shear, default_loads, additional_dead, additional_live = calculate_applied_loads(span_length, loading_type, loads, loaded_width, access_factor)
     
-    # For additional loads, we now assume the safety factors have been applied individually.
-    # For self weight, for steel:
+    # For self weight calculation for steel:
     self_weight_moment = 0.0
     if material == "Steel":
         A_steel = 2 * (flange_width * flange_thickness) + web_thickness * web_depth  # in mm²
@@ -280,18 +277,9 @@ def calculate_beam_capacity(form_data, loads):
         self_weight_moment = (self_weight * span_length**2) / 8  # kNm
 
     total_applied_moment = applied_moment + self_weight_moment
+
     utilisation_ratio = total_applied_moment / moment_capacity if moment_capacity > 0 else float('inf')
     pass_fail = "Pass" if moment_capacity >= total_applied_moment and shear_capacity >= applied_shear else "Fail"
-
-    # For display, assume:
-    # Base HA load (live) = base_moment (from default_loads) is live.
-    # Additional dead load moment is additional_dead (already adjusted) plus self weight.
-    live_load_moment = default_loads.get("base_udl", 0)  # Not used directly; instead, we compute:
-    live_load_moment = ( (effective_udl := default_loads.get("effective_udl", 0) and loaded_width and access_factor and ( (230 * (1/span_length)**0.67 * 0.76/(3.65/2.5)) * (loaded_width/2.5) * access_factor ) or 0)
-                       and ( (effective_udl * span_length**2)/8 + (default_loads.get("kel",0)*span_length)/4 ) ) - (additional_dead if additional_dead else 0)
-    # However, for clarity we display:
-    applied_live = (applied_moment - additional_dead)
-    applied_dead = additional_dead + self_weight_moment
 
     result = {
         "Span Length (m)": round(span_length, 6),
@@ -349,7 +337,6 @@ def calculate():
                 "load_material": mat.lower()
             })
     
-    # Persist additional load fields
     form_data["load_desc[]"] = load_desc_list
     form_data["load_value[]"] = load_value_list
     form_data["load_type[]"] = load_type_list
@@ -362,4 +349,3 @@ def calculate():
 
 if __name__ == "__main__":
     app.run(debug=True)
-
