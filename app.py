@@ -264,7 +264,8 @@ def calculate_beam_capacity(form_data, loads):
     self_weight_moment = 0.0
     if material == "Steel":
         A_steel = 2 * (flange_width * flange_thickness) + web_thickness * web_depth  # in mm²
-        self_weight = (A_steel / 1e6) * 7850 * 9.81  # kN/m
+        # Correct conversion: divide by 1000 to convert N/m to kN/m
+        self_weight = (A_steel / 1e6) * 7850 * 9.81 / 1000  # kN/m
         self_weight_moment = (self_weight * span_length**2) / 8  # kNm
 
     adjusted_dead = additional_dead * add_dead_sf
@@ -338,4 +339,3 @@ def calculate():
 
 if __name__ == "__main__":
     app.run(debug=True)
-
