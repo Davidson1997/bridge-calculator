@@ -16,7 +16,7 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     """
     Calculates the plastic moment capacity (Mpe) and shear capacity for a steel beam.
     
-    The overall beam depth is computed as:
+    Overall beam depth is computed as:
         overall_depth = web_depth + 2 * flange_thickness
     Then:
         Z_plastic = [flange_width * flange_thickness * (overall_depth - flange_thickness) +
@@ -92,7 +92,7 @@ def get_lookup_factor(X):
         return lookup_table[keys[0]]
     if X >= keys[-1]:
         return lookup_table[keys[-1]]
-    for i in range(len(keys)-1):
+    for i in range(len(keys) - 1):
         if keys[i] <= X <= keys[i+1]:
             fraction = (X - keys[i]) / (keys[i+1] - keys[i])
             factor = lookup_table[keys[i]] + fraction * (lookup_table[keys[i+1]] - lookup_table[keys[i]])
@@ -154,7 +154,6 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
     return MR, slenderness, X
 
 def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_width=None, access_factor=None, lane_width=None):
-    # Compute base applied loads for HA or HB
     if loading_type == "HA":
         base_udl = 230 * (1 / span_length)**0.67
         if loaded_width is None or loaded_width <= 0:
@@ -186,25 +185,29 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
     additional_live = 0.0
     additional_shear = 0.0
     for load in additional_loads:
-        load_value = load.get("value", 0)
-        # Use the field "load_distribution" that we set in the POST
-        distribution = load.get("load_distribution", "").lower()
-        load_type_str = load.get("type", "").lower()  # "dead" or "live"
-        if distribution == "udl":
-            add_moment = (load_value * span_length**2) / 8
-            add_shear = (load_value * span_length) / 2
-        elif distribution == "point":
-            add_moment = (load_value * span_length) / 4
-            add_shear = load_value / 2
-        else:
-            add_moment = 0
-            add_shear = 0
-        if load_type_str == "dead":
-            additional_dead += add_moment
-        else:
-            additional_live += add_moment
-        additional_shear += add_shear
-
+        try:
+            load_value = load.get("value", 0)
+            distribution = load.get("load_distribution", "").lower()
+            # If missing, fallback to empty string so that it doesn't crash
+            if not distribution:
+                distribution = ""
+            load_type_str = load.get("type", "").lower() or "live"
+            if distribution == "udl":
+                add_moment = (load_value * span_length**2) / 8
+                add_shear = (load_value * span_length) / 2
+            elif distribution == "point":
+                add_moment = (load_value * span_length) / 4
+                add_shear = load_value / 2
+            else:
+                add_moment = 0
+                add_shear = 0
+            if load_type_str == "dead":
+                additional_dead += add_moment
+            else:
+                additional_live += add_moment
+            additional_shear += add_shear
+        except Exception as e:
+            logging.error(f"Error processing additional load: {load} - {e}")
     total_applied_moment = base_moment + additional_dead + additional_live
     total_applied_shear = base_shear + additional_shear
     return total_applied_moment, total_applied_shear, default_loads, additional_dead, additional_live
@@ -228,7 +231,6 @@ def calculate_beam_capacity(form_data, loads):
         flange_width = get_float(form_data.get("flange_width"))
         flange_thickness = get_float(form_data.get("flange_thickness"))
         web_thickness = get_float(form_data.get("web_thickness"))
-        # Interpret "beam_depth" as web depth.
         web_depth = get_float(form_data.get("beam_depth"))
         Mpe, shear_capacity = calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_thickness, web_depth, condition_factor)
         try:
@@ -261,7 +263,7 @@ def calculate_beam_capacity(form_data, loads):
     else:
         add_dead_sf = 1.0
 
-    # For steel, calculate self weight (kg/m = (A in m² * 7850) then convert to kN/m by multiplying by 9.81/1000)
+    # For steel, calculate self weight
     self_weight_moment = 0.0
     if material == "Steel":
         A_steel = 2 * (flange_width * flange_thickness) + web_thickness * web_depth  # in mm²
@@ -269,7 +271,6 @@ def calculate_beam_capacity(form_data, loads):
         self_weight_moment = (self_weight * span_length**2) / 8  # kNm
 
     adjusted_dead = additional_dead * add_dead_sf
-    # Adjust applied moment: add (adjusted_dead - additional_dead) and add self weight moment (dead load)
     applied_moment = applied_moment + ((adjusted_dead - additional_dead) + self_weight_moment)
     
     utilisation_ratio = applied_moment / moment_capacity if moment_capacity > 0 else float('inf')
@@ -303,9 +304,7 @@ def calculate_beam_capacity(form_data, loads):
     if loading_type == "HA":
         result["HA KEL (kN)"] = round(default_loads.get("kel", 0), 6)
     
-    # Save additional loads so they re-populate the form.
     result["Additional Loads"] = loads
-    
     logging.debug("Calculation result: %s", result)
     return result
 
@@ -331,7 +330,6 @@ def calculate():
                 "load_distribution": distr.lower()
             })
     
-    # Save additional loads back into form_data so they re-populate.
     form_data["load_desc[]"] = load_desc_list
     form_data["load_value[]"] = load_value_list
     form_data["load_type[]"] = load_type_list
