@@ -16,25 +16,22 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     """
     Calculates the plastic moment capacity (Mpe) and shear capacity for a steel beam.
     
-    Overall beam depth is computed as:
+    The overall beam depth is computed as:
         overall_depth = web_depth + 2 * flange_thickness
-        
-    Then the plastic section modulus is calculated by:
+    Then:
         Z_plastic = [flange_width * flange_thickness * (overall_depth - flange_thickness) +
                      (web_thickness * (overall_depth - 2*flange_thickness)**2)/4] / 1e6   (in m³)
-                     
-    Finally,
+    And:
         Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
         Shear capacity = (fy * web_thickness * overall_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
     """
     steel_grade = steel_grade.strip()
     fy = 230.0 if steel_grade == "S230" else (275.0 if steel_grade == "S275" else 355.0)
-    overall_depth = web_depth + 2 * flange_thickness  # overall depth in mm
+    overall_depth = web_depth + 2 * flange_thickness  # in mm
     Z_plastic = (flange_width * flange_thickness * (overall_depth - flange_thickness) +
                  (web_thickness * (overall_depth - 2 * flange_thickness)**2) / 4) / 1e6
     Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
     shear_capacity = (fy * web_thickness * overall_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
-    
     logging.debug(f"Overall depth = {overall_depth:.6f} mm, Z_plastic = {Z_plastic:.6f} m^3, Mpe = {Mpe:.6f} kNm, shear = {shear_capacity:.6f} kN")
     return Mpe, shear_capacity
 
@@ -54,7 +51,6 @@ def calculate_effective_length(L, k1=1.0, k2=1.0):
 def calculate_radius_of_gyration_strong(B_f, t_f, t_w, web_depth):
     """
     Calculates r_x for a symmetric I-beam about the strong axis.
-    
     Overall depth: d = web_depth + 2*t_f
     Gross area: A = 2*(B_f*t_f) + t_w*(d - 2*t_f)
     Moment of inertia about the strong axis:
@@ -72,7 +68,7 @@ def calculate_radius_of_gyration_strong(B_f, t_f, t_w, web_depth):
 lookup_table = {
     0: 1.000000,
     40: 0.900000,
-    50: 0.798750,  # Chosen so that X ~48 gives factor ~0.819
+    50: 0.798750,  # Set so that X ~48 gives factor ~0.819
     60: 0.700000,
     70: 0.580000,
     80: 0.550000,
@@ -158,7 +154,7 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
     return MR, slenderness, X
 
 def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_width=None, access_factor=None, lane_width=None):
-    # Compute base applied loads (HA or HB)
+    # Compute base applied loads for HA or HB
     if loading_type == "HA":
         base_udl = 230 * (1 / span_length)**0.67
         if loaded_width is None or loaded_width <= 0:
@@ -191,10 +187,8 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
     additional_shear = 0.0
     for load in additional_loads:
         load_value = load.get("value", 0)
-        distribution = load.get("load_distribution", load.get("load_distribution[]", "").lower())
-        # If not found, fallback to the field "load_distribution"
-        if not distribution:
-            distribution = load.get("distribution", "").lower()
+        # Use the field "load_distribution" that we set in the POST
+        distribution = load.get("load_distribution", "").lower()
         load_type_str = load.get("type", "").lower()  # "dead" or "live"
         if distribution == "udl":
             add_moment = (load_value * span_length**2) / 8
@@ -211,7 +205,6 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
             additional_live += add_moment
         additional_shear += add_shear
 
-    # Return base loads plus additional moments and shears, and also return separate additional_dead and additional_live.
     total_applied_moment = base_moment + additional_dead + additional_live
     total_applied_shear = base_shear + additional_shear
     return total_applied_moment, total_applied_shear, default_loads, additional_dead, additional_live
@@ -235,7 +228,7 @@ def calculate_beam_capacity(form_data, loads):
         flange_width = get_float(form_data.get("flange_width"))
         flange_thickness = get_float(form_data.get("flange_thickness"))
         web_thickness = get_float(form_data.get("web_thickness"))
-        # Interpret "beam_depth" as the web depth
+        # Interpret "beam_depth" as web depth.
         web_depth = get_float(form_data.get("beam_depth"))
         Mpe, shear_capacity = calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_thickness, web_depth, condition_factor)
         try:
@@ -258,10 +251,9 @@ def calculate_beam_capacity(form_data, loads):
         reduction_factor = effective_length / span_length
         moment_capacity *= reduction_factor
 
-    # Calculate applied loads; get also additional dead and live load moments
     applied_moment, applied_shear, default_loads, additional_dead, additional_live = calculate_applied_loads(span_length, loading_type, loads, loaded_width, access_factor)
     
-    # For additional loads safety factor: steel=1.05, concrete/timber=1.15
+    # Set safety factor for additional dead loads: Steel=1.05, Concrete/Timber=1.15
     if material == "Steel":
         add_dead_sf = 1.05
     elif material in ["Concrete", "Timber"]:
@@ -269,20 +261,16 @@ def calculate_beam_capacity(form_data, loads):
     else:
         add_dead_sf = 1.0
 
-    # Recalculate applied moment by adjusting the dead load portion and adding self weight for steel.
+    # For steel, calculate self weight (kg/m = (A in m² * 7850) then convert to kN/m by multiplying by 9.81/1000)
+    self_weight_moment = 0.0
     if material == "Steel":
-        # Compute steel cross-sectional area (in mm²)
-        A_steel = 2 * (flange_width * flange_thickness) + web_thickness * (web_depth)
-        # Self weight per unit length in kN/m = (A in m² * 7850 * 9.81)/1000
+        A_steel = 2 * (flange_width * flange_thickness) + web_thickness * web_depth  # in mm²
         self_weight = (A_steel / 1e6) * 7850 * 9.81  # kN/m
         self_weight_moment = (self_weight * span_length**2) / 8  # kNm
-        # Adjust additional dead loads by the safety factor
-        adjusted_dead = additional_dead * add_dead_sf
-        # New total applied moment = base loads + adjusted dead loads + additional live loads + self weight moment
-        # We already have total_applied_moment = base + additional_dead + additional_live from calculate_applied_loads.
-        # So add: (adjusted_dead - additional_dead) + self_weight_moment
-        applied_moment = applied_moment + ((adjusted_dead - additional_dead) + self_weight_moment)
-    # (For concrete/timber, you could similarly adjust additional dead loads if desired.)
+
+    adjusted_dead = additional_dead * add_dead_sf
+    # Adjust applied moment: add (adjusted_dead - additional_dead) and add self weight moment (dead load)
+    applied_moment = applied_moment + ((adjusted_dead - additional_dead) + self_weight_moment)
     
     utilisation_ratio = applied_moment / moment_capacity if moment_capacity > 0 else float('inf')
     pass_fail = "Pass" if moment_capacity >= applied_moment and shear_capacity >= applied_shear else "Fail"
@@ -297,8 +285,9 @@ def calculate_beam_capacity(form_data, loads):
         "Shear Capacity (kN)": round(shear_capacity, 6),
         "Applied Moment (ULS) (kNm)": round(applied_moment, 6),
         "Applied Shear (ULS) (kN)": round(applied_shear, 6),
-        "Applied Live Load Moment (kNm)": round((applied_moment - (additional_dead * add_dead_sf + (material=="Steel" and self_weight_moment or 0))), 6),
-        "Applied Dead Load Moment (kNm)": round(additional_dead * add_dead_sf + (material=="Steel" and self_weight_moment or 0), 6),
+        "Applied Live Load Moment (kNm)": round(applied_moment - (adjusted_dead + self_weight_moment), 6),
+        "Applied Dead Load Moment (kNm)": round(adjusted_dead + self_weight_moment, 6),
+        "Self Weight Moment (kNm)": round(self_weight_moment, 6),
         "Utilisation Ratio": round(utilisation_ratio, 6) if utilisation_ratio != float('inf') else "N/A",
         "Pass/Fail": pass_fail,
         "Loading Type": loading_type,
@@ -314,7 +303,7 @@ def calculate_beam_capacity(form_data, loads):
     if loading_type == "HA":
         result["HA KEL (kN)"] = round(default_loads.get("kel", 0), 6)
     
-    # Save the additional loads so that they are re-populated in the form.
+    # Save additional loads so they re-populate the form.
     result["Additional Loads"] = loads
     
     logging.debug("Calculation result: %s", result)
@@ -328,29 +317,27 @@ def home():
 def calculate():
     form_data = request.form.to_dict()
     additional_loads = []
-    # Save additional loads in lists so that they persist on re-render.
     load_desc_list = request.form.getlist("load_desc[]")
     load_value_list = request.form.getlist("load_value[]")
     load_type_list = request.form.getlist("load_type[]")
     load_distribution_list = request.form.getlist("load_distribution[]")
     
-    for desc, value, ltype, distribution in zip(load_desc_list, load_value_list, load_type_list, load_distribution_list):
+    for desc, value, ltype, distr in zip(load_desc_list, load_value_list, load_type_list, load_distribution_list):
         if value.strip():
             additional_loads.append({
                 "description": desc,
                 "value": get_float(value),
-                "type": ltype.lower(),  # Ensure lower case ("dead" or "live")
-                "load_distribution": distribution.lower()
+                "type": ltype.lower(),
+                "load_distribution": distr.lower()
             })
     
-    # Also save these lists back into form_data so they can be re-populated.
+    # Save additional loads back into form_data so they re-populate.
     form_data["load_desc[]"] = load_desc_list
     form_data["load_value[]"] = load_value_list
     form_data["load_type[]"] = load_type_list
     form_data["load_distribution[]"] = load_distribution_list
 
     result = calculate_beam_capacity(form_data, additional_loads)
-    # Also pass the additional loads back so that the HTML can re-populate the rows.
     result["Additional Loads"] = additional_loads
     return render_template("index.html", result=result, form_data=form_data)
 

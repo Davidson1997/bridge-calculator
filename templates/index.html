@@ -114,8 +114,8 @@
           <td><input type="number" step="0.000001" class="form-control" name="load_value[]" required></td>
           <td>
             <select class="form-select" name="load_type[]">
-              <option value="dead">Dead Load</option>
-              <option value="live">Live Load</option>
+              <option value="dead">Dead</option>
+              <option value="live">Live</option>
             </select>
           </td>
           <td>
@@ -135,8 +135,6 @@
     window.onload = function() {
       updateMaterialOptions();
       updateLoadingTypeOptions();
-      // Repopulate additional loads if they exist (if form_data contains them)
-      // (This could be implemented via additional JS if needed.)
     }
   </script>
 </head>
@@ -194,7 +192,7 @@
             <select class="form-select" name="material" id="material" onchange="updateMaterialOptions()" required>
               <option value="Steel" {% if not form_data.get('material') or form_data.get('material') == "Steel" %}selected{% endif %}>Steel</option>
               <option value="Concrete" {% if form_data.get('material') == "Concrete" %}selected{% endif %}>Concrete</option>
-              <!-- You may add Timber here if needed -->
+              <option value="Timber" {% if form_data.get('material') == "Timber" %}selected{% endif %}>Timber</option>
             </select>
           </div>
           <!-- Steel Options -->
