@@ -28,11 +28,11 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     """
     Calculates the plastic moment capacity (Mpe) and shear capacity for a steel beam.
     
-    Overall beam depth is computed as:
+    The overall beam depth is computed as:
         overall_depth = web_depth + 2 * flange_thickness
     Then:
         Z_plastic = [flange_width * flange_thickness * (overall_depth - flange_thickness) +
-                     (web_thickness * (overall_depth - 2*flange_thickness)**2)/4] / 1e6   (in m³)
+                     (web_thickness * (overall_depth - 2*flange_thickness)**2) / 4] / 1e6   (in m³)
     And:
         Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
         Shear capacity = (fy * web_thickness * overall_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
@@ -66,7 +66,7 @@ def calculate_radius_of_gyration_strong(B_f, t_f, t_w, web_depth):
     Overall depth: d = web_depth + 2*t_f
     Gross area: A = 2*(B_f*t_f) + t_w*(d - 2*t_f)
     Moment of inertia about the strong axis:
-         I_x = (t_w^3*(d-2*t_f))/12 + 2*(t_f*(B_f^3))/12
+         I_x = (t_w^3*(d - 2*t_f))/12 + 2*(t_f*(B_f^3))/12
     Returns r_x in meters.
     """
     d = web_depth + 2 * t_f
@@ -76,7 +76,6 @@ def calculate_radius_of_gyration_strong(B_f, t_f, t_w, web_depth):
     logging.debug(f"(Strong axis) A = {A:.6f} mm^2, I_x = {I_x:.6f} mm^4, r_x = {r_x:.6f} mm")
     return r_x / 1000.0
 
-# Revised lookup table for X to adjustment factor.
 lookup_table = {
     0: 1.000000,
     40: 0.900000,
@@ -166,6 +165,7 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
     return MR, slenderness, X
 
 def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_width=None, access_factor=None, lane_width=None):
+    # Base loads (HA or HB) remain unchanged
     if loading_type == "HA":
         base_udl = 230 * (1 / span_length)**0.67
         if loaded_width is None or loaded_width <= 0:
@@ -203,7 +203,6 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
             if not distribution:
                 distribution = ""
             load_type_str = load.get("type", "").lower() or "live"
-            # Get the load material for safety factor
             load_material = load.get("load_material", "steel").lower()
             if distribution == "udl":
                 add_moment = (load_value * span_length**2) / 8
@@ -223,7 +222,7 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
         except Exception as e:
             logging.error(f"Error processing additional load: {load} - {e}")
     total_applied_moment = base_moment + additional_dead + additional_live
-    total_applied_shear = base_shear + additional_shear
+    total_applied_shear = default_loads.get("effective_udl", 0) and ((effective_udl * span_length) / 2 + (kel if loading_type=="HA" else 0)) + additional_shear or 0
     return total_applied_moment, total_applied_shear, default_loads, additional_dead, additional_live
 
 def calculate_beam_capacity(form_data, loads):
@@ -269,7 +268,7 @@ def calculate_beam_capacity(form_data, loads):
 
     applied_moment, applied_shear, default_loads, additional_dead, additional_live = calculate_applied_loads(span_length, loading_type, loads, loaded_width, access_factor)
     
-    # For self weight calculation for steel:
+    # For self-weight calculation for steel:
     self_weight_moment = 0.0
     if material == "Steel":
         A_steel = 2 * (flange_width * flange_thickness) + web_thickness * web_depth  # in mm²
