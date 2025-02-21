@@ -135,6 +135,8 @@
     window.onload = function() {
       updateMaterialOptions();
       updateLoadingTypeOptions();
+      // Repopulate additional loads if they exist (if form_data contains them)
+      // (This could be implemented via additional JS if needed.)
     }
   </script>
 </head>
@@ -192,6 +194,7 @@
             <select class="form-select" name="material" id="material" onchange="updateMaterialOptions()" required>
               <option value="Steel" {% if not form_data.get('material') or form_data.get('material') == "Steel" %}selected{% endif %}>Steel</option>
               <option value="Concrete" {% if form_data.get('material') == "Concrete" %}selected{% endif %}>Concrete</option>
+              <!-- You may add Timber here if needed -->
             </select>
           </div>
           <!-- Steel Options -->
@@ -287,13 +290,33 @@
                   <tr>
                     <th>Description</th>
                     <th>Value (kN or kN/m)</th>
-                    <th>Type</th>
+                    <th>Type (dead/live)</th>
                     <th>Distribution</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <!-- Rows added dynamically -->
+                  {% if form_data.get('load_desc[]') %}
+                    {% for desc, val, typ, distr in zip(form_data.getlist('load_desc[]'), form_data.getlist('load_value[]'), form_data.getlist('load_type[]'), form_data.getlist('load_distribution[]')) %}
+                    <tr>
+                      <td><input type="text" class="form-control" name="load_desc[]" value="{{ desc }}" required></td>
+                      <td><input type="number" step="0.000001" class="form-control" name="load_value[]" value="{{ val }}" required></td>
+                      <td>
+                        <select class="form-select" name="load_type[]">
+                          <option value="dead" {% if typ|lower == "dead" %}selected{% endif %}>Dead</option>
+                          <option value="live" {% if typ|lower == "live" %}selected{% endif %}>Live</option>
+                        </select>
+                      </td>
+                      <td>
+                        <select class="form-select" name="load_distribution[]">
+                          <option value="udl" {% if distr|lower == "udl" %}selected{% endif %}>UDL (kN/m)</option>
+                          <option value="point" {% if distr|lower == "point" %}selected{% endif %}>Point (kN)</option>
+                        </select>
+                      </td>
+                      <td><button type="button" class="btn btn-danger remove-btn" onclick="removeLoad(this)">Remove</button></td>
+                    </tr>
+                    {% endfor %}
+                  {% endif %}
                 </tbody>
               </table>
               <button type="button" class="btn btn-secondary" onclick="addLoad()">+ Add Load</button>
@@ -324,6 +347,12 @@
               <th>Applied Live Load Moment (kNm)</th>
               <td>{{ result["Applied Live Load Moment (kNm)"] }}</td>
             </tr>
+            {% if result.get("Self Weight Moment (kNm)") %}
+            <tr>
+              <th>Self Weight Moment (kNm)</th>
+              <td>{{ result["Self Weight Moment (kNm)"] }}</td>
+            </tr>
+            {% endif %}
           </table>
         </div>
       </div>
@@ -388,7 +417,7 @@
               {% set num_loads = result['Additional Loads']|length %}
               {% for load in result['Additional Loads'] %}
                 {% set pos = 50 + (loop.index0 + 1) * beamLengthPx / (num_loads + 1) %}
-                {% if load.distribution == 'udl' %}
+                {% if load.load_distribution == 'udl' %}
                   <line x1="{{ pos }}" y1="120" x2="{{ pos }}" y2="100" stroke="red" stroke-width="2" marker-end="url(#arrowhead)"/>
                   <text x="{{ pos }}" y="90" fill="red" font-size="12" text-anchor="middle">{{ load.value }} kN/m</text>
                 {% else %}
