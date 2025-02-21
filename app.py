@@ -92,7 +92,7 @@ def get_lookup_factor(X):
         return lookup_table[keys[0]]
     if X >= keys[-1]:
         return lookup_table[keys[-1]]
-    for i in range(len(keys) - 1):
+    for i in range(len(keys)-1):
         if keys[i] <= X <= keys[i+1]:
             fraction = (X - keys[i]) / (keys[i+1] - keys[i])
             factor = lookup_table[keys[i]] + fraction * (lookup_table[keys[i+1]] - lookup_table[keys[i]])
@@ -188,7 +188,6 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
         try:
             load_value = load.get("value", 0)
             distribution = load.get("load_distribution", "").lower()
-            # If missing, fallback to empty string so that it doesn't crash
             if not distribution:
                 distribution = ""
             load_type_str = load.get("type", "").lower() or "live"
@@ -255,7 +254,6 @@ def calculate_beam_capacity(form_data, loads):
 
     applied_moment, applied_shear, default_loads, additional_dead, additional_live = calculate_applied_loads(span_length, loading_type, loads, loaded_width, access_factor)
     
-    # Set safety factor for additional dead loads: Steel=1.05, Concrete/Timber=1.15
     if material == "Steel":
         add_dead_sf = 1.05
     elif material in ["Concrete", "Timber"]:
@@ -263,7 +261,6 @@ def calculate_beam_capacity(form_data, loads):
     else:
         add_dead_sf = 1.0
 
-    # For steel, calculate self weight
     self_weight_moment = 0.0
     if material == "Steel":
         A_steel = 2 * (flange_width * flange_thickness) + web_thickness * web_depth  # in mm²
@@ -341,3 +338,4 @@ def calculate():
 
 if __name__ == "__main__":
     app.run(debug=True)
+

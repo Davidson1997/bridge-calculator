@@ -294,21 +294,21 @@
                   </tr>
                 </thead>
                 <tbody>
-                  {% if form_data.get('load_desc[]') %}
-                    {% for desc, val, typ, distr in zip(form_data.getlist('load_desc[]'), form_data.getlist('load_value[]'), form_data.getlist('load_type[]'), form_data.getlist('load_distribution[]')) %}
+                  {% if result and result.get("Additional Loads") %}
+                    {% for load in result["Additional Loads"] %}
                     <tr>
-                      <td><input type="text" class="form-control" name="load_desc[]" value="{{ desc }}" required></td>
-                      <td><input type="number" step="0.000001" class="form-control" name="load_value[]" value="{{ val }}" required></td>
+                      <td><input type="text" class="form-control" name="load_desc[]" value="{{ load.description }}" required></td>
+                      <td><input type="number" step="0.000001" class="form-control" name="load_value[]" value="{{ load.value }}" required></td>
                       <td>
                         <select class="form-select" name="load_type[]">
-                          <option value="dead" {% if typ|lower == "dead" %}selected{% endif %}>Dead</option>
-                          <option value="live" {% if typ|lower == "live" %}selected{% endif %}>Live</option>
+                          <option value="dead" {% if load.type == "dead" %}selected{% endif %}>Dead</option>
+                          <option value="live" {% if load.type == "live" %}selected{% endif %}>Live</option>
                         </select>
                       </td>
                       <td>
                         <select class="form-select" name="load_distribution[]">
-                          <option value="udl" {% if distr|lower == "udl" %}selected{% endif %}>UDL (kN/m)</option>
-                          <option value="point" {% if distr|lower == "point" %}selected{% endif %}>Point (kN)</option>
+                          <option value="udl" {% if load.load_distribution == "udl" %}selected{% endif %}>UDL (kN/m)</option>
+                          <option value="point" {% if load.load_distribution == "point" %}selected{% endif %}>Point (kN)</option>
                         </select>
                       </td>
                       <td><button type="button" class="btn btn-danger remove-btn" onclick="removeLoad(this)">Remove</button></td>
@@ -411,9 +411,9 @@
               Effective Member Length: {{ result['Effective Member Length (m)'] }} m, Reduction Factor: {{ result['Reduction Factor'] }}
             </text>
             <!-- Additional loads (if any) -->
-            {% if result['Additional Loads'] %}
-              {% set num_loads = result['Additional Loads']|length %}
-              {% for load in result['Additional Loads'] %}
+            {% if result.get("Additional Loads") %}
+              {% set num_loads = result["Additional Loads"]|length %}
+              {% for load in result["Additional Loads"] %}
                 {% set pos = 50 + (loop.index0 + 1) * beamLengthPx / (num_loads + 1) %}
                 {% if load.load_distribution == 'udl' %}
                   <line x1="{{ pos }}" y1="120" x2="{{ pos }}" y2="100" stroke="red" stroke-width="2" marker-end="url(#arrowhead)"/>
