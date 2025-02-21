@@ -120,8 +120,8 @@
           </td>
           <td>
             <select class="form-select" name="load_distribution[]">
-              <option value="udl">UDL</option>
-              <option value="point">Point</option>
+              <option value="udl">UDL (kN/m)</option>
+              <option value="point">Point (kN)</option>
             </select>
           </td>
           <td><button type="button" class="btn btn-danger remove-btn" onclick="removeLoad(this)">Remove</button></td>
@@ -221,7 +221,6 @@
               </div>
               <div class="col">
                 <label for="beam_depth" class="form-label">Web Depth (mm):</label>
-                <!-- Changed label from Beam Depth to Web Depth -->
                 <input type="number" step="0.000001" class="form-control" name="beam_depth" id="beam_depth" value="{{ form_data.get('beam_depth','') }}">
               </div>
             </div>
@@ -287,7 +286,7 @@
                 <thead>
                   <tr>
                     <th>Description</th>
-                    <th>Value (kN)</th>
+                    <th>Value (kN or kN/m)</th>
                     <th>Type</th>
                     <th>Distribution</th>
                     <th>Action</th>
@@ -406,5 +405,3 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-
-

@@ -21,7 +21,7 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
         
     Then the plastic section modulus is calculated by:
         Z_plastic = [flange_width * flange_thickness * (overall_depth - flange_thickness) +
-                     (web_thickness * (overall_depth - 2*flange_thickness)**2)/4] / 1e6   (in m³)
+                     (web_thickness * (overall_depth - 2 * flange_thickness)**2)/4] / 1e6   (in m³)
                      
     Finally, 
         Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
@@ -53,14 +53,14 @@ def calculate_effective_length(L, k1=1.0, k2=1.0):
 
 def calculate_radius_of_gyration_strong(B_f, t_f, t_w, web_depth):
     """
-    Calculates the radius of gyration (r_x) about the strong axis for a symmetric I-beam.
+    Calculates r_x for a symmetric I-beam about the strong axis.
     
     The overall beam depth is computed as:
         d = web_depth + 2*t_f
     The gross cross-sectional area is:
         A = 2*(B_f*t_f) + t_w*(d - 2*t_f)
     The moment of inertia about the strong axis is:
-        I_x = (t_w^3*(d-2*t_f))/12 + 2*(t_f*(B_f^3))/12
+        I_x = (t_w^3*(d - 2*t_f))/12 + 2*(t_f*(B_f^3))/12
     Returns r_x in meters.
     """
     d = web_depth + 2 * t_f
@@ -74,7 +74,7 @@ def calculate_radius_of_gyration_strong(B_f, t_f, t_w, web_depth):
 lookup_table = {
     0: 1.000000,
     40: 0.900000,
-    50: 0.798750,  # Adjusted so that X ~48 gives factor ~0.819
+    50: 0.798750,  # So that X ~48 gives factor ~0.819
     60: 0.700000,
     70: 0.580000,
     80: 0.550000,
@@ -160,6 +160,7 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
     return MR, slenderness, X
 
 def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_width=None, access_factor=None, lane_width=None):
+    # Calculate base applied loads
     if loading_type == "HA":
         base_udl = 230 * (1 / span_length)**0.67
         if loaded_width is None or loaded_width <= 0:
@@ -169,9 +170,9 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
         effective_udl = ((base_udl * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
         base_kel = 82
         kel = ((base_kel * 0.76) / (3.65 / 2.5)) * (loaded_width / 2.5) * access_factor
+        base_moment = (effective_udl * span_length**2) / 8 + (kel * span_length) / 4
+        base_shear = (effective_udl * span_length) / 2 + (kel) / 2
         default_loads = {"base_udl": base_udl, "effective_udl": effective_udl, "kel": kel}
-        applied_moment = (effective_udl * span_length**2) / 8 + (kel * span_length) / 4
-        applied_shear = (effective_udl * span_length) / 2 + (kel) / 2
     elif loading_type == "HB":
         udl = 45
         point_load = 180
@@ -180,25 +181,39 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
         else:
             effective_udl = udl
         default_loads = {"udl": udl, "effective_udl": effective_udl}
-        applied_moment = (effective_udl * span_length**2) / 8 + (point_load * span_length) / 4
-        applied_shear = (effective_udl * span_length) / 2 + point_load / 2
+        base_moment = (effective_udl * span_length**2) / 8 + (point_load * span_length) / 4
+        base_shear = (effective_udl * span_length) / 2 + point_load / 2
     else:
-        effective_udl = 0
+        base_moment = 0
+        base_shear = 0
         default_loads = {"udl": 0, "effective_udl": 0}
-        applied_moment = 0
-        applied_shear = 0
-
+    
+    # Sum additional loads separately for dead and live
+    additional_dead = 0.0
+    additional_live = 0.0
+    additional_shear = 0.0
     for load in additional_loads:
         load_value = load.get("value", 0)
         distribution = load.get("distribution", "").lower()
+        load_type = load.get("type", "").lower()  # "dead" or "live"
         if distribution == "udl":
-            applied_moment += (load_value * span_length**2) / 8
-            applied_shear += (load_value * span_length) / 2
+            add_moment = (load_value * span_length**2) / 8
+            add_shear = (load_value * span_length) / 2
         elif distribution == "point":
-            applied_moment += (load_value * span_length) / 4
-            applied_shear += load_value / 2
+            add_moment = (load_value * span_length) / 4
+            add_shear = load_value / 2
+        else:
+            add_moment = 0
+            add_shear = 0
+        if load_type == "dead":
+            additional_dead += add_moment
+        else:
+            additional_live += add_moment
+        additional_shear += add_shear
 
-    return applied_moment, applied_shear, default_loads
+    total_applied_moment = base_moment + additional_dead + additional_live
+    total_applied_shear = base_shear + additional_shear
+    return total_applied_moment, total_applied_shear, default_loads, additional_dead, additional_live
 
 def calculate_beam_capacity(form_data, loads):
     material = form_data.get("material")
@@ -219,7 +234,7 @@ def calculate_beam_capacity(form_data, loads):
         flange_width = get_float(form_data.get("flange_width"))
         flange_thickness = get_float(form_data.get("flange_thickness"))
         web_thickness = get_float(form_data.get("web_thickness"))
-        # Here, user input for "beam_depth" is now interpreted as web depth.
+        # Interpret "beam_depth" as web depth.
         web_depth = get_float(form_data.get("beam_depth"))
         Mpe, shear_capacity = calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_thickness, web_depth, condition_factor)
         try:
@@ -242,7 +257,7 @@ def calculate_beam_capacity(form_data, loads):
         reduction_factor = effective_length / span_length
         moment_capacity *= reduction_factor
 
-    applied_moment, applied_shear, default_loads = calculate_applied_loads(span_length, loading_type, loads, loaded_width, access_factor)
+    applied_moment, applied_shear, default_loads, additional_dead, additional_live = calculate_applied_loads(span_length, loading_type, loads, loaded_width, access_factor)
     utilisation_ratio = applied_moment / moment_capacity if moment_capacity > 0 else float('inf')
     pass_fail = "Pass" if moment_capacity >= applied_moment and shear_capacity >= applied_shear else "Fail"
 
@@ -256,8 +271,8 @@ def calculate_beam_capacity(form_data, loads):
         "Shear Capacity (kN)": round(shear_capacity, 6),
         "Applied Moment (ULS) (kNm)": round(applied_moment, 6),
         "Applied Shear (ULS) (kN)": round(applied_shear, 6),
-        "Applied Live Load Moment (kNm)": round(applied_moment, 6),
-        "Applied Dead Load Moment (kNm)": round(0, 6),
+        "Applied Live Load Moment (kNm)": round(( (applied_moment - additional_dead) ), 6),
+        "Applied Dead Load Moment (kNm)": round(additional_dead, 6),
         "Utilisation Ratio": round(utilisation_ratio, 6) if utilisation_ratio != float('inf') else "N/A",
         "Pass/Fail": pass_fail,
         "Loading Type": loading_type,
