@@ -5,15 +5,15 @@ import logging
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
+# Helper: floating point conversion
 def get_float(value, default=0.0):
-    """Safely convert a value to float."""
     try:
         return float(value.strip()) if value and isinstance(value, str) else default
     except Exception:
         return default
 
+# Helper: additional load safety factor based on material
 def get_additional_load_sf(load_material):
-    """Return the safety factor for an additional load based on its material."""
     if not load_material:
         return 1.0
     material = load_material.strip().lower()
@@ -24,19 +24,16 @@ def get_additional_load_sf(load_material):
     else:
         return 1.0
 
+# Helper: a simple range generator for floats
+def drange(start, stop, step):
+    r = start
+    while r <= stop:
+        yield r
+        r += step
+
+### Existing beam capacity functions
+
 def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_thickness, web_depth, condition_factor):
-    """
-    Calculates the plastic moment capacity (Mpe) and shear capacity for a steel beam.
-    
-    Overall beam depth is computed as:
-        overall_depth = web_depth + 2 * flange_thickness
-    Then:
-        Z_plastic = [flange_width * flange_thickness * (overall_depth - flange_thickness) +
-                     (web_thickness * (overall_depth - 2*flange_thickness)**2)/4] / 1e6   (in m³)
-    And:
-        Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
-        Shear capacity = (fy * web_thickness * overall_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
-    """
     steel_grade = steel_grade.strip()
     fy = 230.0 if steel_grade == "S230" else (275.0 if steel_grade == "S275" else 355.0)
     overall_depth = web_depth + 2 * flange_thickness  # in mm
@@ -44,42 +41,32 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
                  (web_thickness * (overall_depth - 2 * flange_thickness)**2) / 4) / 1e6
     Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
     shear_capacity = (fy * web_thickness * overall_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
-    logging.debug(f"Overall depth = {overall_depth:.6f} mm, Z_plastic = {Z_plastic:.6f} m^3, Mpe = {Mpe:.6f} kNm, shear = {shear_capacity:.6f} kN")
+    logging.debug(f"Overall depth = {overall_depth:.6f} mm, Z_plastic = {Z_plastic:.6f} m³, Mpe = {Mpe:.6f} kNm, shear = {shear_capacity:.6f} kN")
     return Mpe, shear_capacity
 
 def calculate_concrete_capacity(concrete_grade, beam_width, effective_depth, rebar_size=0, rebar_spacing=0):
     fck = 32 if concrete_grade == "C32/40" else 40
     moment_capacity = 0.156 * fck * beam_width * effective_depth**2 / 1e6
     shear_capacity = 0.6 * fck * beam_width * effective_depth / 1e3
-    BD37_moment_factor = 0.95
-    BD37_shear_factor = 1.0
-    moment_capacity *= BD37_moment_factor
-    shear_capacity *= BD37_shear_factor
+    moment_capacity *= 0.95
+    shear_capacity *= 1.0
     return moment_capacity, shear_capacity
 
 def calculate_effective_length(L, k1=1.0, k2=1.0):
     return k1 * k2 * L
 
 def calculate_radius_of_gyration_strong(B_f, t_f, t_w, web_depth):
-    """
-    Calculates r_x for a symmetric I-beam about the strong axis.
-    Overall depth: d = web_depth + 2*t_f
-    Gross area: A = 2*(B_f*t_f) + t_w*(d - 2*t_f)
-    Moment of inertia about the strong axis:
-         I_x = (t_w^3*(d-2*t_f))/12 + 2*(t_f*(B_f^3))/12
-    Returns r_x in meters.
-    """
     d = web_depth + 2 * t_f
     A = 2 * (B_f * t_f) + t_w * (d - 2 * t_f)
-    I_x = (t_w ** 3 * (d - 2 * t_f)) / 12.0 + 2 * ((t_f * (B_f ** 3)) / 12.0)
+    I_x = (t_w**3 * (d - 2 * t_f)) / 12.0 + 2 * ((t_f * (B_f**3)) / 12.0)
     r_x = math.sqrt(I_x / A)
-    logging.debug(f"(Strong axis) A = {A:.6f} mm^2, I_x = {I_x:.6f} mm^4, r_x = {r_x:.6f} mm")
+    logging.debug(f"(Strong axis) A = {A:.6f} mm², I_x = {I_x:.6f} mm⁴, r_x = {r_x:.6f} mm")
     return r_x / 1000.0
 
 lookup_table = {
     0: 1.000000,
     40: 0.900000,
-    50: 0.798750,  # Set so that X ~48 gives factor ~0.819
+    50: 0.798750,
     60: 0.700000,
     70: 0.580000,
     80: 0.550000,
@@ -164,6 +151,71 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
     logging.debug(f"fy = {fy:.6f}, slenderness = {slenderness:.6f}, X = {X:.6f}, Lookup Factor = {lookup_factor:.6f}, MR = {MR:.6f}")
     return MR, slenderness, X
 
+### New function for vehicle load analysis
+def calculate_vehicle_loads(span_length, vehicle_type):
+    """
+    For the selected vehicle, computes the maximum moment and shear along the beam.
+    Currently implemented for the "3 tonne" vehicle:
+      - Axle loads: 21 kN and 9 kN.
+      - Axle spacing: 2 m.
+      - Each beam carries half the load: so 10.5 kN and 4.5 kN.
+    The function simulates placing the vehicle (front axle position 'a' from 0 to span-2 m, in 0.01 m increments)
+    and, for each position, computes the moment diagram (by sampling every 0.01 m along the span)
+    using standard simply supported beam formulas. It returns the worst-case (maximum) moment and shear.
+    """
+    if vehicle_type.strip().lower() == "3 tonne":
+        spacing = 2.0
+        P1 = 21.0 / 2.0  # effective load on beam from axle 1: 10.5 kN
+        P2 = 9.0 / 2.0   # effective load on beam from axle 2: 4.5 kN
+    else:
+        return {"Vehicle Maximum Moment (kNm)": 0.0, "Vehicle Maximum Shear (kN)": 0.0}
+    
+    worst_M = 0.0
+    worst_V = 0.0
+    a_step = 0.01
+    x_step = 0.01
+    # Loop over candidate placements for front axle (ensure vehicle fits fully on beam)
+    for a in drange(0, span_length - spacing, a_step):
+        b = a + spacing
+        M_max_for_a = 0.0
+        V_max_for_a = 0.0
+        x = 0.0
+        while x <= span_length:
+            # Compute moment due to each load using standard simply supported formulas:
+            # For a point load P at distance a, reaction R1 = P*(L-a)/L.
+            # Moment at x: if x <= a: M = R1 * x, if x > a: M = R1*x - P*(x-a)
+            # Do this for both axles and sum.
+            # Axle 1:
+            if x <= a:
+                R1 = P1 * (span_length - a) / span_length
+                M1 = R1 * x
+            else:
+                R1 = P1 * (span_length - a) / span_length
+                M1 = R1 * x - P1 * (x - a)
+            # Axle 2:
+            if x <= b:
+                R2 = P2 * (span_length - b) / span_length
+                M2 = R2 * x
+            else:
+                R2 = P2 * (span_length - b) / span_length
+                M2 = R2 * x - P2 * (x - b)
+            M_total = M1 + M2
+            # For shear, a rough approach: sum reactions (except at load positions where there is a jump)
+            if x < a:
+                V_total = P1 * (span_length - a) / span_length + P2 * (span_length - b) / span_length
+            elif a <= x < b:
+                V_total = P2 * (span_length - b) / span_length + (P1 * (span_length - a) / span_length - P1)
+            else:
+                V_total = (P1 * (span_length - a) / span_length - P1) + (P2 * (span_length - b) / span_length - P2)
+            M_max_for_a = max(M_max_for_a, abs(M_total))
+            V_max_for_a = max(V_max_for_a, abs(V_total))
+            x += x_step
+        worst_M = max(worst_M, M_max_for_a)
+        worst_V = max(worst_V, V_max_for_a)
+    return {"Vehicle Maximum Moment (kNm)": worst_M, "Vehicle Maximum Shear (kN)": worst_V}
+
+### Existing functions for applied loads and beam capacity
+
 def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_width=None, access_factor=None, lane_width=None):
     if loading_type == "HA":
         base_udl = 230 * (1 / span_length)**0.67
@@ -221,7 +273,7 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
         except Exception as e:
             logging.error(f"Error processing additional load: {load} - {e}")
     total_applied_moment = base_moment + additional_dead + additional_live
-    total_applied_shear = (effective_udl * span_length) / 2 + (kel if loading_type=="HA" else 0) + additional_shear
+    total_applied_shear = (default_loads.get("effective_udl", 0) * span_length) / 2 + (kel if loading_type=="HA" else 0) + additional_shear
     return total_applied_moment, total_applied_shear, default_loads, additional_dead, additional_live
 
 def calculate_beam_capacity(form_data, loads):
@@ -267,19 +319,18 @@ def calculate_beam_capacity(form_data, loads):
 
     applied_moment, applied_shear, default_loads, additional_dead, additional_live = calculate_applied_loads(span_length, loading_type, loads, loaded_width, access_factor)
     
-    # Self-weight calculation for steel (converted self-weight is multiplied by its safety factor)
+    # Self-weight for steel: multiply by partial factor 1.05
     self_weight_moment = 0.0
     if material == "Steel":
         A_steel = 2 * (flange_width * flange_thickness) + web_thickness * web_depth  # in mm²
         self_weight = (A_steel / 1e6) * 7850 * 9.81 / 1000  # kN/m
-        self_weight_moment = ((self_weight * span_length**2) / 8) * 1.05  # kNm, safety factor 1.05
+        self_weight_moment = ((self_weight * span_length**2) / 8) * 1.05  # kNm
 
     total_applied_moment = applied_moment + self_weight_moment
-
     utilisation_ratio = total_applied_moment / moment_capacity if moment_capacity > 0 else float('inf')
     pass_fail = "Pass" if moment_capacity >= total_applied_moment and shear_capacity >= applied_shear else "Fail"
 
-    # For display, split applied moment into live and dead:
+    # Split applied moment into live and dead parts for display:
     applied_live = applied_moment - additional_dead
     applied_dead = additional_dead + self_weight_moment
 
@@ -311,9 +362,66 @@ def calculate_beam_capacity(form_data, loads):
     if loading_type == "HA":
         result["HA KEL (kN)"] = round(default_loads.get("kel", 0), 6)
     
+    # New: Vehicle Loads analysis
+    vehicle_type = form_data.get("vehicle_type", "").strip()
+    if vehicle_type and vehicle_type.lower() != "none":
+        vehicle_results = calculate_vehicle_loads(span_length, vehicle_type)
+        result.update(vehicle_results)
+    
     result["Additional Loads"] = loads
     logging.debug("Calculation result: %s", result)
     return result
+
+### New function for vehicle load analysis
+def calculate_vehicle_loads(span_length, vehicle_type):
+    # For now, only implement the "3 tonne" vehicle.
+    if vehicle_type.strip().lower() == "3 tonne":
+        spacing = 2.0  # m
+        P1 = 21.0 / 2.0  # effective load on one beam: 10.5 kN
+        P2 = 9.0 / 2.0   # effective load on one beam: 4.5 kN
+    else:
+        return {"Vehicle Maximum Moment (kNm)": 0.0, "Vehicle Maximum Shear (kN)": 0.0}
+    
+    worst_M = 0.0
+    worst_V = 0.0
+    a_step = 0.01
+    x_step = 0.01
+    # Loop over front axle positions so that the vehicle fits entirely: a in [0, span_length - spacing]
+    for a in drange(0, span_length - spacing, a_step):
+        b = a + spacing
+        M_max_for_a = 0.0
+        V_max_for_a = 0.0
+        x = 0.0
+        while x <= span_length:
+            # For each point x along the beam, compute moment due to axle1 and axle2
+            # Axle 1:
+            if x <= a:
+                R1 = P1 * (span_length - a) / span_length
+                M1 = R1 * x
+            else:
+                R1 = P1 * (span_length - a) / span_length
+                M1 = R1 * x - P1 * (x - a)
+            # Axle 2:
+            if x <= b:
+                R2 = P2 * (span_length - b) / span_length
+                M2 = R2 * x
+            else:
+                R2 = P2 * (span_length - b) / span_length
+                M2 = R2 * x - P2 * (x - b)
+            M_total = M1 + M2
+            # For shear, use a simplified approach:
+            if x < a:
+                V_total = P1 * (span_length - a) / span_length + P2 * (span_length - b) / span_length
+            elif a <= x < b:
+                V_total = (P1 * (span_length - a) / span_length - P1) + P2 * (span_length - b) / span_length
+            else:
+                V_total = (P1 * (span_length - a) / span_length - P1) + (P2 * (span_length - b) / span_length - P2)
+            M_max_for_a = max(M_max_for_a, abs(M_total))
+            V_max_for_a = max(V_max_for_a, abs(V_total))
+            x += x_step
+        worst_M = max(worst_M, M_max_for_a)
+        worst_V = max(worst_V, V_max_for_a)
+    return {"Vehicle Maximum Moment (kNm)": worst_M, "Vehicle Maximum Shear (kN)": worst_V}
 
 @app.route("/")
 def home():
