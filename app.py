@@ -28,11 +28,11 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     """
     Calculates the plastic moment capacity (Mpe) and shear capacity for a steel beam.
     
-    The overall beam depth is computed as:
+    Overall beam depth is computed as:
         overall_depth = web_depth + 2 * flange_thickness
     Then:
         Z_plastic = [flange_width * flange_thickness * (overall_depth - flange_thickness) +
-                     (web_thickness * (overall_depth - 2*flange_thickness)**2) / 4] / 1e6   (in m³)
+                     (web_thickness * (overall_depth - 2*flange_thickness)**2)/4] / 1e6   (in m³)
     And:
         Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
         Shear capacity = (fy * web_thickness * overall_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
@@ -66,7 +66,7 @@ def calculate_radius_of_gyration_strong(B_f, t_f, t_w, web_depth):
     Overall depth: d = web_depth + 2*t_f
     Gross area: A = 2*(B_f*t_f) + t_w*(d - 2*t_f)
     Moment of inertia about the strong axis:
-         I_x = (t_w^3*(d - 2*t_f))/12 + 2*(t_f*(B_f^3))/12
+         I_x = (t_w^3*(d-2*t_f))/12 + 2*(t_f*(B_f^3))/12
     Returns r_x in meters.
     """
     d = web_depth + 2 * t_f
@@ -165,7 +165,6 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
     return MR, slenderness, X
 
 def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_width=None, access_factor=None, lane_width=None):
-    # Base loads (HA or HB) remain unchanged
     if loading_type == "HA":
         base_udl = 230 * (1 / span_length)**0.67
         if loaded_width is None or loaded_width <= 0:
@@ -222,7 +221,7 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
         except Exception as e:
             logging.error(f"Error processing additional load: {load} - {e}")
     total_applied_moment = base_moment + additional_dead + additional_live
-    total_applied_shear = default_loads.get("effective_udl", 0) and ((effective_udl * span_length) / 2 + (kel if loading_type=="HA" else 0)) + additional_shear or 0
+    total_applied_shear = (effective_udl * span_length) / 2 + (kel if loading_type=="HA" else 0) + additional_shear
     return total_applied_moment, total_applied_shear, default_loads, additional_dead, additional_live
 
 def calculate_beam_capacity(form_data, loads):
@@ -268,17 +267,21 @@ def calculate_beam_capacity(form_data, loads):
 
     applied_moment, applied_shear, default_loads, additional_dead, additional_live = calculate_applied_loads(span_length, loading_type, loads, loaded_width, access_factor)
     
-    # For self-weight calculation for steel:
+    # Self-weight calculation for steel (converted self-weight is multiplied by its safety factor)
     self_weight_moment = 0.0
     if material == "Steel":
         A_steel = 2 * (flange_width * flange_thickness) + web_thickness * web_depth  # in mm²
-        self_weight = (A_steel / 1e6) * 7850 * 9.81 / 1000  # kN/m (correct conversion)
-        self_weight_moment = (self_weight * span_length**2) / 8  # kNm
+        self_weight = (A_steel / 1e6) * 7850 * 9.81 / 1000  # kN/m
+        self_weight_moment = ((self_weight * span_length**2) / 8) * 1.05  # kNm, safety factor 1.05
 
     total_applied_moment = applied_moment + self_weight_moment
 
     utilisation_ratio = total_applied_moment / moment_capacity if moment_capacity > 0 else float('inf')
     pass_fail = "Pass" if moment_capacity >= total_applied_moment and shear_capacity >= applied_shear else "Fail"
+
+    # For display, split applied moment into live and dead:
+    applied_live = applied_moment - additional_dead
+    applied_dead = additional_dead + self_weight_moment
 
     result = {
         "Span Length (m)": round(span_length, 6),
@@ -290,8 +293,8 @@ def calculate_beam_capacity(form_data, loads):
         "Shear Capacity (kN)": round(shear_capacity, 6),
         "Applied Moment (ULS) (kNm)": round(total_applied_moment, 6),
         "Applied Shear (ULS) (kN)": round(applied_shear, 6),
-        "Applied Live Load Moment (kNm)": round(applied_moment - additional_dead, 6),
-        "Applied Dead Load Moment (kNm)": round(additional_dead + self_weight_moment, 6),
+        "Applied Live Load Moment (kNm)": round(applied_live, 6),
+        "Applied Dead Load Moment (kNm)": round(applied_dead, 6),
         "Self Weight Moment (kNm)": round(self_weight_moment, 6),
         "Utilisation Ratio": round(utilisation_ratio, 6) if utilisation_ratio != float('inf') else "N/A",
         "Pass/Fail": pass_fail,
