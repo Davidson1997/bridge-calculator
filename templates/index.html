@@ -157,7 +157,7 @@
       </div>
       <div class="card-body">
         <form action="/calculate" method="post">
-          <!-- Existing input fields (bridge type, span, effective span, effective length factors, material, steel/concrete options, loading type, etc.) -->
+          <!-- Existing fields -->
           <div class="mb-3">
             <label for="bridge_type" class="form-label">Bridge Type:</label>
             <select class="form-select" name="bridge_type" id="bridge_type" required>
@@ -349,6 +349,15 @@
                   <option value="3 tonne" {% if form_data.get('vehicle_type') == "3 tonne" %}selected{% endif %}>3 tonne</option>
                   <option value="7.5 tonne" {% if form_data.get('vehicle_type') == "7.5 tonne" %}selected{% endif %}>7.5 tonne</option>
                   <option value="18 tonne" {% if form_data.get('vehicle_type') == "18 tonne" %}selected{% endif %}>18 tonne</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label for="vehicle_impact_factor" class="form-label">Vehicle Impact Factor:</label>
+                <select class="form-select" name="vehicle_impact_factor" id="vehicle_impact_factor">
+                  {% for i in range(10, 21) %}
+                    {% set val = i/10 %}
+                    <option value="{{ val }}" {% if form_data.get('vehicle_impact_factor') == val|string %}selected{% endif %}>{{ val }}</option>
+                  {% endfor %}
                 </select>
               </div>
             </div>
