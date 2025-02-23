@@ -157,7 +157,7 @@
       </div>
       <div class="card-body">
         <form action="/calculate" method="post">
-          <!-- All existing input fields (bridge type, span, effective span, material, steel/concrete options, etc.) remain unchanged -->
+          <!-- Existing input fields (bridge type, span, effective span, effective length factors, material, steel/concrete options, loading type, etc.) -->
           <div class="mb-3">
             <label for="bridge_type" class="form-label">Bridge Type:</label>
             <select class="form-select" name="bridge_type" id="bridge_type" required>
@@ -347,7 +347,8 @@
                 <select class="form-select" name="vehicle_type" id="vehicle_type">
                   <option value="None" {% if form_data.get('vehicle_type') == "None" %}selected{% endif %}>None</option>
                   <option value="3 tonne" {% if form_data.get('vehicle_type') == "3 tonne" %}selected{% endif %}>3 tonne</option>
-                  <!-- Add more vehicle types as needed -->
+                  <option value="7.5 tonne" {% if form_data.get('vehicle_type') == "7.5 tonne" %}selected{% endif %}>7.5 tonne</option>
+                  <option value="18 tonne" {% if form_data.get('vehicle_type') == "18 tonne" %}selected{% endif %}>18 tonne</option>
                 </select>
               </div>
             </div>
@@ -458,6 +459,12 @@
                   <text x="{{ pos }}" y="60" fill="blue" font-size="12" text-anchor="middle">{{ load.value }} kN</text>
                 {% endif %}
               {% endfor %}
+            {% endif %}
+            {% if result.get("Vehicle Maximum Moment (kNm)") %}
+              <text x="50" y="20" fill="black" font-size="14">
+                Vehicle Max Moment: {{ result["Vehicle Maximum Moment (kNm)"] }} kNm,
+                Max Shear: {{ result["Vehicle Maximum Shear (kN)"] }} kN
+              </text>
             {% endif %}
           </svg>
         </div>
