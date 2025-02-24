@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -460,7 +459,7 @@
             {% set beamLengthPx = result['Span Length (m)'] * scale %}
             <!-- Draw the beam as a large rounded rectangle -->
             <rect x="50" y="180" width="{{ beamLengthPx }}" height="60" fill="#666" rx="10" />
-            <!-- Draw supports with a solid fill (you can adjust colors as needed) -->
+            <!-- Draw supports with a solid fill (adjust colors if needed) -->
             <polygon points="40,240 50,180 50,240" fill="#003366"/>
             <polygon points="{{ 50 + beamLengthPx }},240 {{ 50 + beamLengthPx + 10 }},240 {{ 50 + beamLengthPx }},180" fill="#003366"/>
             
@@ -507,7 +506,7 @@
                 {% set P1 = 21.0 * factor * 1.3 %}
                 {% set P2 = 9.0 * factor * 1.3 %}
               {% endif %}
-              <!-- Position the vehicle load at mid-span of the beam -->
+              <!-- Position the vehicle loads at mid-span of the beam -->
               {% set L = result["Span Length (m)"] %}
               {% set a = (L - spacing) / 2 %}
               {% set b = a + spacing %}
