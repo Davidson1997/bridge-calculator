@@ -158,7 +158,7 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
     logging.debug(f"fy = {fy:.6f}, slenderness = {slenderness:.6f}, X = {X:.6f}, Lookup Factor = {lookup_factor:.6f}, MR = {MR:.6f}")
     return MR, slenderness, X
 
-### Updated Vehicle Loads function using overall reaction and piecewise moment formula
+### Updated Vehicle Loads function using the given formulas
 def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_dispersion="none"):
     vt = vehicle_type.strip().lower()
     # Define axle parameters for each vehicle type (loads in kN)
@@ -197,28 +197,30 @@ def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_
     a_step = 0.01
     x_step = 0.01
     L = span_length
-    # For each possible front axle position (a) such that the vehicle fits:
+    # For each possible front axle position (a) such that vehicle fits:
     for a in drange(0, L - spacing, a_step):
-        b = a + spacing  # rear axle position
-        # Overall left reaction computed from moments about the right support:
-        R_left = (P1 * (L - a) + P2 * (L - b)) / L
+        b = a + spacing  # Rear axle position
+        # Using the new formulas:
+        # Left support reaction R_A:
+        R_A = (P1 * (L - a) + P2 * (L - b)) / L
+        # (R_B can be computed similarly but is not needed for moment calculation.)
         M_max_for_a = 0.0
         V_max_for_a = 0.0
         x = 0.0
         while x <= L:
-            if x < a:
-                M = R_left * x
-            elif x < b:
-                M = R_left * x - P1 * (x - a)
+            if x <= a:
+                M = R_A * x
+            elif x <= b:
+                M = R_A * x - P1 * (x - a)
             else:
-                M = R_left * x - P1 * (x - a) - P2 * (x - b)
-            # Shear is constant in segments:
+                M = R_A * x - P1 * (x - a) - P2 * (x - b)
+            # Shear calculation (piecewise constant):
             if x < a:
-                V = R_left
+                V = R_A
             elif x < b:
-                V = R_left - P1
+                V = R_A - P1
             else:
-                V = R_left - P1 - P2
+                V = R_A - P1 - P2
             M_max_for_a = max(M_max_for_a, abs(M))
             V_max_for_a = max(V_max_for_a, abs(V))
             x += x_step
