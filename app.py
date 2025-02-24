@@ -73,7 +73,7 @@ def calculate_radius_of_gyration_strong(B_f, t_f, t_w, web_depth):
 lookup_table = {
     0: 1.000000,
     40: 0.900000,
-    50: 0.798750,  # Set so that X ~48 gives factor ~0.819
+    50: 0.798750,
     60: 0.700000,
     70: 0.580000,
     80: 0.550000,
@@ -158,10 +158,10 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
     logging.debug(f"fy = {fy:.6f}, slenderness = {slenderness:.6f}, X = {X:.6f}, Lookup Factor = {lookup_factor:.6f}, MR = {MR:.6f}")
     return MR, slenderness, X
 
-### Updated function: Vehicle Loads analysis using overall reaction and piecewise formulas
+### Updated Vehicle Loads function using overall reaction and piecewise moment formula
 def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_dispersion="none"):
     vt = vehicle_type.strip().lower()
-    # Define axle parameters (loads in kN)
+    # Define axle parameters for each vehicle type (loads in kN)
     if vt == "3 tonne":
         spacing = 2.0
         P1 = 21.0 / 2.0   # 10.5 kN per beam
@@ -176,10 +176,10 @@ def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_
         P2 = 113.0 / 2.0  # 56.5 kN per beam
     else:
         return {"Vehicle Maximum Moment (kNm)": 0.0, "Vehicle Maximum Shear (kN)": 0.0}
-    # Apply load factor of 1.3
+    # Multiply by load factor 1.3 (applied even before impact factor)
     P1 *= 1.3
     P2 *= 1.3
-    # Apply wheel dispersion reduction if selected ("25" means 25% reduction, "50" means 50% reduction)
+    # Apply wheel dispersion reduction if selected ("25" for 25% reduction, "50" for 50% reduction)
     reduction_factor = 1.0
     try:
         rd = float(wheel_dispersion)
@@ -197,15 +197,14 @@ def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_
     a_step = 0.01
     x_step = 0.01
     L = span_length
-    # Slide the front axle position from 0 to (L - spacing)
+    # For each possible front axle position (a) such that the vehicle fits:
     for a in drange(0, L - spacing, a_step):
-        b = a + spacing
-        # Overall left reaction for both loads:
-        R_left = (P1 * (L - b) + P2 * (L - a)) / L
+        b = a + spacing  # rear axle position
+        # Overall left reaction computed from moments about the right support:
+        R_left = (P1 * (L - a) + P2 * (L - b)) / L
         M_max_for_a = 0.0
         V_max_for_a = 0.0
         x = 0.0
-        # For each position x along the beam, compute the moment using the piecewise formula:
         while x <= L:
             if x < a:
                 M = R_left * x
@@ -213,7 +212,7 @@ def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_
                 M = R_left * x - P1 * (x - a)
             else:
                 M = R_left * x - P1 * (x - a) - P2 * (x - b)
-            # Shear is R_left until first load, then reduced
+            # Shear is constant in segments:
             if x < a:
                 V = R_left
             elif x < b:
@@ -367,8 +366,9 @@ def calculate_beam_capacity(form_data, loads):
         "Access Type": access_str
     }
     if material == "Steel":
+        slenderness, F_param, v, r = calculate_slenderness(effective_length, web_depth, flange_thickness, flange_width, web_thickness)
         result["Slenderness (λ)"] = round(slenderness, 6)
-        result["X Parameter"] = round(X, 6)
+        result["X Parameter"] = round(slenderness * math.sqrt((230 if steel_grade=="S230" else (275 if steel_grade=="S275" else 355)) / 355.0), 6)
     if loading_type in ["HA", "HB"]:
         result[f"{loading_type} UDL (kN/m)"] = round(default_loads.get("effective_udl", 0), 6)
     if loading_type == "HA":
