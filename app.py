@@ -158,27 +158,35 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
     logging.debug(f"fy = {fy:.6f}, slenderness = {slenderness:.6f}, X = {X:.6f}, Lookup Factor = {lookup_factor:.6f}, MR = {MR:.6f}")
     return MR, slenderness, X
 
-### Updated Vehicle Loads function using the given formulas:
-def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_dispersion="none"):
+### Updated Vehicle Loads function using the given formulas for support reactions and moment distribution.
+def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_dispersion="none", axle_mode="per beam"):
     vt = vehicle_type.strip().lower()
     # Define axle parameters for each vehicle type (loads in kN)
     if vt == "3 tonne":
         spacing = 2.0
-        P1 = 21.0 / 2.0   # 10.5 kN per beam
-        P2 = 9.0 / 2.0    # 4.5 kN per beam
+        P1 = 21.0
+        P2 = 9.0
     elif vt == "7.5 tonne":
         spacing = 2.0
-        P1 = 59.0 / 2.0   # 29.5 kN per beam
-        P2 = 15.0 / 2.0   # 7.5 kN per beam
+        P1 = 59.0
+        P2 = 15.0
     elif vt == "18 tonne":
         spacing = 3.0
-        P1 = 64.0 / 2.0   # 32 kN per beam
-        P2 = 113.0 / 2.0  # 56.5 kN per beam
+        P1 = 64.0
+        P2 = 113.0
     else:
         return {"Vehicle Maximum Moment (kNm)": 0.0, "Vehicle Maximum Shear (kN)": 0.0}
+    
+    # Apply axle load mode: if "per beam", use half the axle load; if "full", use the full load.
+    if axle_mode.strip().lower() == "per beam":
+        P1 /= 2.0
+        P2 /= 2.0
+    # Else, if "full", leave as is.
+
     # Multiply by load factor 1.3 (applied even before impact factor)
     P1 *= 1.3
     P2 *= 1.3
+
     # Apply wheel dispersion reduction if selected ("25" means 25% reduction, "50" means 50% reduction)
     reduction_factor = 1.0
     try:
@@ -197,12 +205,12 @@ def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_
     a_step = 0.01
     x_step = 0.01
     L = span_length
-    # For each possible front axle position (a) such that the vehicle fits:
+    # For each possible front axle position a such that the vehicle fits:
     for a in drange(0, L - spacing, a_step):
         b = a + spacing  # rear axle position
-        # Compute overall left reaction using:
-        # R_A = [P1*(L - a) + P2*(L - b)]/L
+        # Using the support reaction formulas:
         R_A = (P1 * (L - a) + P2 * (L - b)) / L
+        # (R_B = (P1*a + P2*b)/L but is not used here.)
         M_max_for_a = 0.0
         V_max_for_a = 0.0
         x = 0.0
@@ -213,7 +221,7 @@ def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_
                 M = R_A * x - P1 * (x - a)
             else:
                 M = R_A * x - P1 * (x - a) - P2 * (x - b)
-            # Shear is constant in segments:
+            # Shear is piecewise constant:
             if x < a:
                 V = R_A
             elif x < b:
@@ -379,8 +387,9 @@ def calculate_beam_capacity(form_data, loads):
     vehicle_type = form_data.get("vehicle_type", "").strip()
     vehicle_impact_factor = get_float(form_data.get("vehicle_impact_factor"), 1.0)
     wheel_dispersion = form_data.get("wheel_dispersion", "none").strip()  # expected "none", "25", or "50"
+    axle_mode = form_data.get("axle_load_mode", "per beam").strip()  # new dropdown parameter
     if vehicle_type and vehicle_type.lower() != "none":
-        vehicle_results = calculate_vehicle_loads(span_length, vehicle_type, vehicle_impact_factor, wheel_dispersion)
+        vehicle_results = calculate_vehicle_loads(span_length, vehicle_type, vehicle_impact_factor, wheel_dispersion, axle_mode)
         # Round vehicle results to 1 decimal place
         vehicle_results = {k: round(v, 1) for k, v in vehicle_results.items()}
         result.update(vehicle_results)

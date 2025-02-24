@@ -157,7 +157,7 @@
       </div>
       <div class="card-body">
         <form action="/calculate" method="post">
-          <!-- Existing input fields -->
+          <!-- Existing Input Fields -->
           <div class="mb-3">
             <label for="bridge_type" class="form-label">Bridge Type:</label>
             <select class="form-select" name="bridge_type" id="bridge_type" required>
@@ -366,6 +366,17 @@
                   <option value="none" {% if form_data.get('wheel_dispersion') == "none" %}selected{% endif %}>None</option>
                   <option value="25" {% if form_data.get('wheel_dispersion') == "25" %}selected{% endif %}>25%</option>
                   <option value="50" {% if form_data.get('wheel_dispersion') == "50" %}selected{% endif %}>50%</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label for="axle_load_mode" class="form-label">Axle Load Mode:</label>
+                <select class="form-select" name="axle_load_mode" id="axle_load_mode">
+                  <option value="per beam" {% if form_data.get('axle_load_mode') == "per beam" or not form_data.get('axle_load_mode') %}selected{% endif %}>
+                    Individual Wheels (Half Axle Load)
+                  </option>
+                  <option value="full" {% if form_data.get('axle_load_mode') == "full" %}selected{% endif %}>
+                    Full Axle Load
+                  </option>
                 </select>
               </div>
             </div>
