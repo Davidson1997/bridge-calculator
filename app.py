@@ -158,7 +158,7 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
     logging.debug(f"fy = {fy:.6f}, slenderness = {slenderness:.6f}, X = {X:.6f}, Lookup Factor = {lookup_factor:.6f}, MR = {MR:.6f}")
     return MR, slenderness, X
 
-### Updated Vehicle Loads function using the given formulas
+### Updated Vehicle Loads function using the given formulas:
 def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_dispersion="none"):
     vt = vehicle_type.strip().lower()
     # Define axle parameters for each vehicle type (loads in kN)
@@ -179,7 +179,7 @@ def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_
     # Multiply by load factor 1.3 (applied even before impact factor)
     P1 *= 1.3
     P2 *= 1.3
-    # Apply wheel dispersion reduction if selected ("25" for 25% reduction, "50" for 50% reduction)
+    # Apply wheel dispersion reduction if selected ("25" means 25% reduction, "50" means 50% reduction)
     reduction_factor = 1.0
     try:
         rd = float(wheel_dispersion)
@@ -197,13 +197,12 @@ def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_
     a_step = 0.01
     x_step = 0.01
     L = span_length
-    # For each possible front axle position (a) such that vehicle fits:
+    # For each possible front axle position (a) such that the vehicle fits:
     for a in drange(0, L - spacing, a_step):
-        b = a + spacing  # Rear axle position
-        # Using the new formulas:
-        # Left support reaction R_A:
+        b = a + spacing  # rear axle position
+        # Compute overall left reaction using:
+        # R_A = [P1*(L - a) + P2*(L - b)]/L
         R_A = (P1 * (L - a) + P2 * (L - b)) / L
-        # (R_B can be computed similarly but is not needed for moment calculation.)
         M_max_for_a = 0.0
         V_max_for_a = 0.0
         x = 0.0
@@ -214,7 +213,7 @@ def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_
                 M = R_A * x - P1 * (x - a)
             else:
                 M = R_A * x - P1 * (x - a) - P2 * (x - b)
-            # Shear calculation (piecewise constant):
+            # Shear is constant in segments:
             if x < a:
                 V = R_A
             elif x < b:
@@ -348,33 +347,33 @@ def calculate_beam_capacity(form_data, loads):
     applied_dead = additional_dead + self_weight_moment
 
     result = {
-        "Span Length (m)": round(span_length, 6),
-        "Effective Member Length (m)": round(effective_length, 6),
-        "k1": round(k1, 6),
-        "k2": round(k2, 6),
-        "Reduction Factor": round(reduction_factor, 6),
-        "Moment Capacity (kNm)": round(moment_capacity, 6),
-        "Shear Capacity (kN)": round(shear_capacity, 6),
-        "Applied Moment (ULS) (kNm)": round(total_applied_moment, 6),
-        "Applied Shear (ULS) (kN)": round(applied_shear, 6),
-        "Applied Live Load Moment (kNm)": round(applied_live, 6),
-        "Applied Dead Load Moment (kNm)": round(applied_dead, 6),
-        "Self Weight Moment (kNm)": round(self_weight_moment, 6),
-        "Utilisation Ratio": round(utilisation_ratio, 6) if utilisation_ratio != float('inf') else "N/A",
+        "Span Length (m)": round(span_length, 1),
+        "Effective Member Length (m)": round(effective_length, 1),
+        "k1": round(k1, 1),
+        "k2": round(k2, 1),
+        "Reduction Factor": round(reduction_factor, 1),
+        "Moment Capacity (kNm)": round(moment_capacity, 1),
+        "Shear Capacity (kN)": round(shear_capacity, 1),
+        "Applied Moment (ULS) (kNm)": round(total_applied_moment, 1),
+        "Applied Shear (ULS) (kN)": round(applied_shear, 1),
+        "Applied Live Load Moment (kNm)": round(applied_live, 1),
+        "Applied Dead Load Moment (kNm)": round(applied_dead, 1),
+        "Self Weight Moment (kNm)": round(self_weight_moment, 1),
+        "Utilisation Ratio": round(utilisation_ratio, 1) if utilisation_ratio != float('inf') else "N/A",
         "Pass/Fail": pass_fail,
         "Loading Type": loading_type,
-        "Condition Factor": round(condition_factor, 6),
-        "Loaded Carriageway Width (m)": round(loaded_width, 6),
+        "Condition Factor": round(condition_factor, 1),
+        "Loaded Carriageway Width (m)": round(loaded_width, 1),
         "Access Type": access_str
     }
     if material == "Steel":
         slenderness, F_param, v, r = calculate_slenderness(effective_length, web_depth, flange_thickness, flange_width, web_thickness)
-        result["Slenderness (λ)"] = round(slenderness, 6)
-        result["X Parameter"] = round(slenderness * math.sqrt((230 if steel_grade=="S230" else (275 if steel_grade=="S275" else 355)) / 355.0), 6)
+        result["Slenderness (λ)"] = round(slenderness, 1)
+        result["X Parameter"] = round(slenderness * math.sqrt((230 if steel_grade=="S230" else (275 if steel_grade=="S275" else 355)) / 355.0), 1)
     if loading_type in ["HA", "HB"]:
-        result[f"{loading_type} UDL (kN/m)"] = round(default_loads.get("effective_udl", 0), 6)
+        result[f"{loading_type} UDL (kN/m)"] = round(default_loads.get("effective_udl", 0), 1)
     if loading_type == "HA":
-        result["HA KEL (kN)"] = round(default_loads.get("kel", 0), 6)
+        result["HA KEL (kN)"] = round(default_loads.get("kel", 0), 1)
     
     # Vehicle Loads analysis:
     vehicle_type = form_data.get("vehicle_type", "").strip()
@@ -382,6 +381,8 @@ def calculate_beam_capacity(form_data, loads):
     wheel_dispersion = form_data.get("wheel_dispersion", "none").strip()  # expected "none", "25", or "50"
     if vehicle_type and vehicle_type.lower() != "none":
         vehicle_results = calculate_vehicle_loads(span_length, vehicle_type, vehicle_impact_factor, wheel_dispersion)
+        # Round vehicle results to 1 decimal place
+        vehicle_results = {k: round(v, 1) for k, v in vehicle_results.items()}
         result.update(vehicle_results)
     
     result["Additional Loads"] = loads
