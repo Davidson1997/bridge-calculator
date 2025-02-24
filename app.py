@@ -158,10 +158,10 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
     logging.debug(f"fy = {fy:.6f}, slenderness = {slenderness:.6f}, X = {X:.6f}, Lookup Factor = {lookup_factor:.6f}, MR = {MR:.6f}")
     return MR, slenderness, X
 
-### New function: Vehicle Loads analysis with impact factor and wheel dispersion
+### Updated function: Vehicle Loads analysis using overall reaction and piecewise formulas
 def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_dispersion="none"):
     vt = vehicle_type.strip().lower()
-    # Define axle parameters for each vehicle type (loads in kN)
+    # Define axle parameters (loads in kN)
     if vt == "3 tonne":
         spacing = 2.0
         P1 = 21.0 / 2.0   # 10.5 kN per beam
@@ -176,10 +176,10 @@ def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_
         P2 = 113.0 / 2.0  # 56.5 kN per beam
     else:
         return {"Vehicle Maximum Moment (kNm)": 0.0, "Vehicle Maximum Shear (kN)": 0.0}
-    # Factor by 1.3 even before impact factor
+    # Apply load factor of 1.3
     P1 *= 1.3
     P2 *= 1.3
-    # Apply wheel dispersion reduction if selected ("25" for 25% or "50" for 50% reduction)
+    # Apply wheel dispersion reduction if selected ("25" means 25% reduction, "50" means 50% reduction)
     reduction_factor = 1.0
     try:
         rd = float(wheel_dispersion)
@@ -196,33 +196,32 @@ def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_
     worst_V = 0.0
     a_step = 0.01
     x_step = 0.01
-    for a in drange(0, span_length - spacing, a_step):
+    L = span_length
+    # Slide the front axle position from 0 to (L - spacing)
+    for a in drange(0, L - spacing, a_step):
         b = a + spacing
+        # Overall left reaction for both loads:
+        R_left = (P1 * (L - b) + P2 * (L - a)) / L
         M_max_for_a = 0.0
         V_max_for_a = 0.0
         x = 0.0
-        while x <= span_length:
-            if x <= a:
-                R1 = P1 * (span_length - a) / span_length
-                M1 = R1 * x
-            else:
-                R1 = P1 * (span_length - a) / span_length
-                M1 = R1 * x - P1 * (x - a)
-            if x <= b:
-                R2 = P2 * (span_length - b) / span_length
-                M2 = R2 * x
-            else:
-                R2 = P2 * (span_length - b) / span_length
-                M2 = R2 * x - P2 * (x - b)
-            M_total = M1 + M2
+        # For each position x along the beam, compute the moment using the piecewise formula:
+        while x <= L:
             if x < a:
-                V_total = P1 * (span_length - a) / span_length + P2 * (span_length - b) / span_length
-            elif a <= x < b:
-                V_total = (P1 * (span_length - a) / span_length - P1) + P2 * (span_length - b) / span_length
+                M = R_left * x
+            elif x < b:
+                M = R_left * x - P1 * (x - a)
             else:
-                V_total = (P1 * (span_length - a) / span_length - P1) + (P2 * (span_length - b) / span_length - P2)
-            M_max_for_a = max(M_max_for_a, abs(M_total))
-            V_max_for_a = max(V_max_for_a, abs(V_total))
+                M = R_left * x - P1 * (x - a) - P2 * (x - b)
+            # Shear is R_left until first load, then reduced
+            if x < a:
+                V = R_left
+            elif x < b:
+                V = R_left - P1
+            else:
+                V = R_left - P1 - P2
+            M_max_for_a = max(M_max_for_a, abs(M))
+            V_max_for_a = max(V_max_for_a, abs(V))
             x += x_step
         worst_M = max(worst_M, M_max_for_a)
         worst_V = max(worst_V, V_max_for_a)
@@ -378,7 +377,7 @@ def calculate_beam_capacity(form_data, loads):
     # Vehicle Loads analysis:
     vehicle_type = form_data.get("vehicle_type", "").strip()
     vehicle_impact_factor = get_float(form_data.get("vehicle_impact_factor"), 1.0)
-    wheel_dispersion = form_data.get("wheel_dispersion", "none").strip()  # "none", "25", or "50"
+    wheel_dispersion = form_data.get("wheel_dispersion", "none").strip()  # expected "none", "25", or "50"
     if vehicle_type and vehicle_type.lower() != "none":
         vehicle_results = calculate_vehicle_loads(span_length, vehicle_type, vehicle_impact_factor, wheel_dispersion)
         result.update(vehicle_results)
