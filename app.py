@@ -95,7 +95,6 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
         d_layer = total_depth - cover
         weighted_depth += A_layer * d_layer
     if total_As == 0:
-        # Instead of crashing the app, we raise a ValueError that will be caught later.
         raise ValueError("No reinforcement provided. Please enter valid reinforcement details.")
     d_eff = weighted_depth / total_As
 

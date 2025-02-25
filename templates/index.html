@@ -278,7 +278,7 @@
               <input type="number" step="0.000001" class="form-control" name="beam_depth" id="beam_depth" value="{{ form_data.get('beam_depth','') }}">
             </div>
           </div>
-          <!-- New Concrete Reinforcement Options -->
+          <!-- Concrete Reinforcement Options -->
           <div id="concrete-reinf-options" class="mb-3">
             <h5>Concrete Reinforcement Layers</h5>
             <p>For each reinforcement layer (tension reinforcement), enter the number of bars, select the bar diameter, and enter the cover from the bottom of the beam to the centroid of the reinforcement.</p>
@@ -445,6 +445,9 @@
     </div>
     
     {% if result %}
+      {# Set a local variable for loading type for use in the diagram #}
+      {% set loading_type = result["Loading Type"] %}
+      
       {% if result.error %}
         <div class="alert alert-danger mt-4" role="alert">
           {{ result.error }}
@@ -588,6 +591,7 @@
           </div>
         </div>
       {% endif %}
+    {% endif %}
   </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
