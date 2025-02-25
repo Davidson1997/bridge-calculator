@@ -1,3 +1,4 @@
+
 from flask import Flask, render_template, request, make_response
 import math
 import logging
@@ -6,7 +7,7 @@ from weasyprint import HTML
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-# Make Python's built-in zip available to Jinja2 templates
+# Make Python's built-in zip available in Jinja2 templates
 app.jinja_env.globals.update(zip=zip)
 
 def get_float(value, default=0.0):
@@ -40,7 +41,7 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     logging.debug(f"Steel: overall_depth={overall_depth} mm, Z_plastic={Z_plastic} m³, Mpe={Mpe} kNm, shear={shear_capacity} kN")
     return Mpe, shear_capacity
 
-# === Concrete Calculations (unchanged except condition factor applied) ===
+# === Concrete Calculations (unchanged) ===
 def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinforcement_layers,
                                 reinforcement_strength, condition_factor,
                                 partial_factor_concrete=1.5, partial_factor_reinf=1.15,
@@ -52,7 +53,7 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
         f_ck = 40
         fcu = 50
     f_cd = f_ck / partial_factor_concrete
-    f_y = reinforcement_strength  # Nominal reinforcement strength
+    f_y = reinforcement_strength
     f_y_design = f_y / partial_factor_reinf
 
     total_As = 0.0
@@ -77,9 +78,9 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
     z_calculated = d_eff * (1 - (0.84 * (f_y / 1.15) * total_As) / ((fcu / 1.5) * beam_width * d_eff))
     z = min(z_calculated, 0.95 * d_eff)
     
-    Mus = (f_y_design * total_As * z) / 1e6  # kNm
-    Muc = (0.225 * (fcu / 1.5) * beam_width * (d_eff ** 2)) / 1e6  # kNm
-    moment_capacity = min(Mus, Muc) * condition_factor  # Apply condition factor
+    Mus = (f_y_design * total_As * z) / 1e6
+    Muc = (0.225 * (fcu / 1.5) * beam_width * (d_eff ** 2)) / 1e6
+    moment_capacity = min(Mus, Muc) * condition_factor
     
     Ss = (550 / d_eff) ** 0.25
     if Ss > 1.0:
@@ -95,7 +96,7 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
     
     return moment_capacity, Vu_kN, Mus, Muc, d_eff, total_As
 
-# === Timber Calculations ===
+# === Timber Calculations (updated with timber properties) ===
 def calculate_timber_beam(form_data):
     """
     Calculates timber beam capacities using the following formulas:
@@ -104,16 +105,16 @@ def calculate_timber_beam(form_data):
         - width = timber beam width (mm)
         - depth = timber beam depth (mm)
         - K2 = fixed at 0.8
-        - K3 = user-selected duration factor (from drop-down)
+        - K3 = user-selected duration factor
         - K7 = (300 / depth)^0.11
 
       Timber grade properties are taken from a dictionary.
       Then:
         b1 = (bending parallel) * K2 * K3 * K7  
         b2 = (shear parallel) * K2 * K3 * K7
-        
+
       Section modulus for a rectangular section:
-        Z = (width * depth^2) / 6   [mm^3]
+        Z = (width * depth^2) / 6   [mm³]
         
       Timber bending moment capacity (kNm):
         M_timber = (Z * b1) / 1e6
@@ -125,10 +126,9 @@ def calculate_timber_beam(form_data):
     timber_beam_depth = get_float(form_data.get("timber_beam_depth"))
     timber_grade = form_data.get("timber_grade")
     timber_K3 = get_float(form_data.get("timber_K3"))
-    timber_K2 = 0.8  # Fixed value
+    timber_K2 = 0.8
     timber_K7 = (300 / timber_beam_depth) ** 0.11 if timber_beam_depth > 0 else 0
 
-    # Timber properties for various grades
     timber_properties = {
          "C16": {"bending_parallel": 16.0, "shear_parallel": 1.8},
          "C24": {"bending_parallel": 24.0, "shear_parallel": 2.5},
@@ -146,8 +146,8 @@ def calculate_timber_beam(form_data):
     b2 = shear_parallel * timber_K2 * timber_K3 * timber_K7
 
     Z = (timber_beam_width * (timber_beam_depth ** 2)) / 6.0
-    timber_moment_capacity = (Z * b1) / 1e6  # kNm
-    timber_shear_capacity = (b2 * timber_beam_width * timber_beam_depth) / 1e3  # kN
+    timber_moment_capacity = (Z * b1) / 1e6
+    timber_shear_capacity = (b2 * timber_beam_width * timber_beam_depth) / 1e3
 
     timber_results = {
         "Timber Beam Width (mm)": timber_beam_width,
@@ -567,9 +567,10 @@ def calculate():
                            reinforcement_diameters=reinforcement_diameters,
                            reinforcement_covers=reinforcement_covers)
 
+# --- New PDF download route ---
 @app.route("/download-pdf", methods=["POST"])
 def download_pdf():
-    # Use the same form data as the calculate route
+    # Reuse the same form data and calculation as the /calculate route
     form_data = request.form.to_dict()
     additional_loads = []
     load_desc_list = request.form.getlist("load_desc[]")
@@ -601,7 +602,6 @@ def download_pdf():
     result = calculate_beam_capacity(form_data, additional_loads)
     result["Additional Loads"] = additional_loads
 
-    # Render the breakdown template that shows a detailed calculation
     rendered = render_template("breakdown.html", result=result, form_data=form_data,
                                reinforcement_nums=reinforcement_nums,
                                reinforcement_diameters=reinforcement_diameters,

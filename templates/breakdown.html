@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Calculation Breakdown</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1, h2 { text-align: center; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #333; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+  </style>
+</head>
+<body>
+  <h1>Calculation Breakdown</h1>
+  <h2>Input Parameters</h2>
+  <table>
+    {% for key, value in form_data.items() %}
+      <tr>
+        <th>{{ key }}</th>
+        <td>{{ value }}</td>
+      </tr>
+    {% endfor %}
+  </table>
+  
+  <h2>Results</h2>
+  <table>
+    {% for key, value in result.items() %}
+      {% if key != "Additional Loads" %}
+      <tr>
+        <th>{{ key }}</th>
+        <td>{{ value }}</td>
+      </tr>
+      {% endif %}
+    {% endfor %}
+  </table>
+  
+  <h2>Additional Loads</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th>Value</th>
+        <th>Type</th>
+        <th>Material</th>
+        <th>Distribution</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for load in result["Additional Loads"] %}
+      <tr>
+        <td>{{ load.description }}</td>
+        <td>{{ load.value }}</td>
+        <td>{{ load.type }}</td>
+        <td>{{ load.load_material }}</td>
+        <td>{{ load.load_distribution }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
