@@ -546,7 +546,7 @@
             <table class="table table-striped">
               <tbody>
                 {% for key, value in result.items() %}
-                  {% if key != 'error' %}
+                  {% if key != 'error' and key != 'Additional Loads' and key != 'Calculation Process' %}
                   <tr>
                     <th>{{ key }}</th>
                     <td>{{ value }}</td>
@@ -555,6 +555,15 @@
                 {% endfor %}
               </tbody>
             </table>
+          </div>
+        </div>
+        
+        <div class="card mt-4">
+          <div class="card-header bg-info text-white">
+            <h4>Detailed Calculation Process</h4>
+          </div>
+          <div class="card-body">
+            <div style="white-space: pre-wrap;">{{ result["Calculation Process"] | safe }}</div>
           </div>
         </div>
         

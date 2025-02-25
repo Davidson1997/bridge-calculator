@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>Calculation Breakdown</title>
   <style>
-    /* Modern subtle gradient background */
     body {
       font-family: 'Open Sans', sans-serif;
       background: linear-gradient(to right, #34495e, #bdc3c7);
@@ -53,8 +52,6 @@
     tr:nth-child(even) {
       background-color: #f4f4f4;
     }
-    /* Optional: add a little spacing below headings */
-    h1 { margin-top: 0; }
   </style>
 </head>
 <body>
@@ -74,7 +71,7 @@
     <div class="section-title">Results</div>
     <table>
       {% for key, value in result.items() %}
-        {% if key != "Additional Loads" %}
+        {% if key != "Additional Loads" and key != "Calculation Process" %}
         <tr>
           <th>{{ key }}</th>
           <td>{{ value }}</td>
@@ -82,6 +79,11 @@
         {% endif %}
       {% endfor %}
     </table>
+    
+    <div class="section-title">Detailed Calculation Process</div>
+    <div style="margin-top: 15px; padding: 10px; background-color: #f9f9f9; border: 1px solid #ccc;">
+      {{ result["Calculation Process"] | safe }}
+    </div>
     
     <div class="section-title">Additional Loads</div>
     <table>
@@ -109,3 +111,4 @@
   </div>
 </body>
 </html>
+
