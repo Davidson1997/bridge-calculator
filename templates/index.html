@@ -292,8 +292,8 @@
                 </tr>
               </thead>
               <tbody>
-                {% if form_data.get('reinforcement_num[]') %}
-                  {% for num, dia, cover in zip(form_data.getlist('reinforcement_num[]'), form_data.getlist('reinforcement_diameter[]'), form_data.getlist('reinforcement_cover[]')) %}
+                {% if reinforcement_nums %}
+                  {% for num, dia, cover in zip(reinforcement_nums, reinforcement_diameters, reinforcement_covers) %}
                   <tr>
                     <td><input type="number" step="1" class="form-control" name="reinforcement_num[]" value="{{ num }}" required></td>
                     <td>
@@ -445,9 +445,7 @@
     </div>
     
     {% if result %}
-      {# Set a local variable for loading type for use in the diagram #}
       {% set loading_type = result["Loading Type"] %}
-      
       {% if result.error %}
         <div class="alert alert-danger mt-4" role="alert">
           {{ result.error }}

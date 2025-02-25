@@ -372,12 +372,13 @@ def calculate_beam_capacity(form_data, loads):
         concrete_grade = form_data.get("concrete_grade")
         beam_width = get_float(form_data.get("beam_width"))
         total_depth = get_float(form_data.get("beam_depth"))
-        reinf_num_list = request.form.getlist("reinforcement_num[]")
-        reinf_dia_list = request.form.getlist("reinforcement_diameter[]")
-        reinf_cover_list = request.form.getlist("reinforcement_cover[]")
+        # Get reinforcement lists from request.form separately
+        reinforcement_nums = request.form.getlist("reinforcement_num[]")
+        reinforcement_diameters = request.form.getlist("reinforcement_diameter[]")
+        reinforcement_covers = request.form.getlist("reinforcement_cover[]")
         reinforcement_strength = get_float(form_data.get("reinforcement_strength"), 500.0)
         reinforcement_layers = []
-        for num, dia, cover in zip(reinf_num_list, reinf_dia_list, reinf_cover_list):
+        for num, dia, cover in zip(reinforcement_nums, reinforcement_diameters, reinforcement_covers):
             if num.strip() and dia.strip() and cover.strip():
                 reinforcement_layers.append({
                     "num_bars": int(num),
@@ -473,7 +474,7 @@ def drange(start, stop, step):
 
 @app.route("/")
 def home():
-    return render_template("index.html", form_data={})
+    return render_template("index.html", form_data={}, reinforcement_nums=[], reinforcement_diameters=[], reinforcement_covers=[])
 
 @app.route("/calculate", methods=["POST"])
 def calculate():
@@ -495,6 +496,11 @@ def calculate():
                 "load_material": mat.lower()
             })
     
+    # Also get the reinforcement lists separately for use in the template
+    reinforcement_nums = request.form.getlist("reinforcement_num[]")
+    reinforcement_diameters = request.form.getlist("reinforcement_diameter[]")
+    reinforcement_covers = request.form.getlist("reinforcement_cover[]")
+    
     form_data["load_desc[]"] = load_desc_list
     form_data["load_value[]"] = load_value_list
     form_data["load_type[]"] = load_type_list
@@ -503,7 +509,10 @@ def calculate():
 
     result = calculate_beam_capacity(form_data, additional_loads)
     result["Additional Loads"] = additional_loads
-    return render_template("index.html", result=result, form_data=form_data)
+    return render_template("index.html", result=result, form_data=form_data,
+                           reinforcement_nums=reinforcement_nums,
+                           reinforcement_diameters=reinforcement_diameters,
+                           reinforcement_covers=reinforcement_covers)
 
 if __name__ == "__main__":
     app.run(debug=True)
