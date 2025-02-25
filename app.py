@@ -54,20 +54,18 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
     reinforcement_layers is a list of dictionaries, each with:
        - num_bars: number of bars in that layer,
        - bar_diameter: in mm,
-       - layer_cover: distance from the bottom of the beam to the centroid of the layer.
+       - layer_cover: distance from the bottom of the beam to the centroid of the reinforcement.
     
-    For "C32/40": f_ck = 30 MPa, fcu = 40 MPa;
-    Otherwise: f_ck = 40 MPa, fcu = 50 MPa.
+    For "C32/40": f_ck = 30 MPa, fcu = 40 MPa; otherwise f_ck = 40 MPa, fcu = 50 MPa.
     f_cd = f_ck / partial_factor_concrete.
     f_y_design = reinforcement_strength / partial_factor_reinf.
     
-    Total reinforcement area, As = sum( num_bars * (π/4 * (bar_diameter)^2) ).
-    Effective depth d_eff = (sum( A_i * (total_depth - layer_cover) )) / (sum( A_i )).
+    Total reinforcement area, As = sum(num_bars * (π/4 * (bar_diameter)^2)).
+    Effective depth, d_eff = (sum(Ai * (total_depth - layer_cover)))/sum(Ai).
     
     Then:
-      Mus = (f_y_design * As * (d_eff - a/2)) / 1e6  [kNm],
-          where a = (As * f_y_design) / (0.85 * (fcu/partial_factor_concrete) * beam_width).
-      Muc = [0.225 * (fcu)/partial_factor_concrete] * beam_width * (d_eff)^2 / 1e6  [kNm].
+      Mus = (f_y_design * As * (d_eff - a/2)) / 1e6, where a = (As * f_y_design) / (0.85*(fcu/partial_factor_concrete)*beam_width).
+      Muc = [0.225*(fcu)/partial_factor_concrete] * beam_width * (d_eff)^2 / 1e6.
     Design moment capacity is min(Mus, Muc).
     
     Ultimate shear capacity, Vu:
@@ -372,7 +370,6 @@ def calculate_beam_capacity(form_data, loads):
         concrete_grade = form_data.get("concrete_grade")
         beam_width = get_float(form_data.get("beam_width"))
         total_depth = get_float(form_data.get("beam_depth"))
-        # Get reinforcement lists from request.form separately
         reinforcement_nums = request.form.getlist("reinforcement_num[]")
         reinforcement_diameters = request.form.getlist("reinforcement_diameter[]")
         reinforcement_covers = request.form.getlist("reinforcement_cover[]")
