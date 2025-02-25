@@ -5,7 +5,7 @@ import logging
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-# Make Python's built-in zip available to Jinja2 templates
+# Make Python's built-in zip available in Jinja2 templates
 app.jinja_env.globals.update(zip=zip)
 
 def get_float(value, default=0.0):
@@ -27,15 +27,8 @@ def get_additional_load_sf(load_material):
     else:
         return 1.0
 
+# === Steel Calculations (already in place) ===
 def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_thickness, web_depth, condition_factor):
-    """
-    Calculates the plastic moment capacity (Mpe) and shear capacity for a steel beam.
-    Overall beam depth = web_depth + 2 * flange_thickness.
-    Z_plastic = [flange_width * flange_thickness * (overall_depth - flange_thickness) +
-                 (web_thickness * (overall_depth - 2*flange_thickness)**2)/4] / 1e6 (in m³)
-    Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
-    Shear capacity = (fy * web_thickness * overall_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
-    """
     steel_grade = steel_grade.strip()
     fy = 230.0 if steel_grade == "S230" else (275.0 if steel_grade == "S275" else 355.0)
     overall_depth = web_depth + 2 * flange_thickness
@@ -46,44 +39,11 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     logging.debug(f"Steel: overall_depth={overall_depth} mm, Z_plastic={Z_plastic} m³, Mpe={Mpe} kNm, shear={shear_capacity} kN")
     return Mpe, shear_capacity
 
+# === Concrete Calculations (with updated lever arm and condition factor applied) ===
 def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinforcement_layers,
                                 reinforcement_strength, condition_factor,
                                 partial_factor_concrete=1.5, partial_factor_reinf=1.15,
                                 partial_factor_shear=1.25):
-    """
-    Calculates design moment and ultimate shear capacities for a reinforced concrete beam.
-    
-    The user enters the beam’s total depth.
-    reinforcement_layers is a list of dictionaries, each with:
-       - num_bars: number of bars in that layer,
-       - bar_diameter: in mm,
-       - layer_cover: cover from the bottom of the beam to the rebar face.
-    
-    For "C32/40": f_ck = 30 MPa, fcu = 40 MPa; otherwise f_ck = 40 MPa, fcu = 50 MPa.
-    f_cd = f_ck / partial_factor_concrete.
-    f_y_design = reinforcement_strength / partial_factor_reinf.
-    
-    Total reinforcement area, As, is the sum over layers.
-    The effective depth for each layer is computed as:
-         d_layer = total_depth - (cover + (bar_diameter / 2))
-    and the overall effective depth, d_eff, is the weighted average:
-         d_eff = (sum(A_layer * d_layer)) / (sum(A_layer))
-    
-    Then the lever arm is computed as:
-         z_calculated = d_eff * [1 - (0.84*(f_y/1.15)*As) / ((fcu/1.5)*b*d_eff)]
-         z = min(z_calculated, 0.95*d_eff)
-    
-    Tension-controlled moment capacity:
-         Mus = ( (f_y/1.15) * As * z ) / 1e6  (in kNm)
-    Crushing-controlled moment capacity:
-         Muc = [0.225*(fcu/1.5)] * b * d_eff² / 1e6
-    The design moment capacity is the lower of Mus and Muc, multiplied by the condition factor.
-    
-    Ultimate shear capacity, Vu:
-         Ss = min((550/d_eff)**0.25, 1.0)
-         vc = (0.24/partial_factor_shear) * (((100*As)/(b*d_eff))**0.333 * (fcu**0.333))
-         Vu = Ss * vc * b * d_eff (in N, then converted to kN)
-    """
     if concrete_grade == "C32/40":
         f_ck = 30
         fcu = 40
@@ -96,6 +56,7 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
 
     total_As = 0.0
     weighted_depth = 0.0
+    # Here we assume the reinforcement inputs are submitted with these names.
     for num, dia, cover in zip(
         request.form.getlist("reinforcement_num[]"),
         request.form.getlist("reinforcement_diameter[]"),
@@ -107,20 +68,19 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
                 raise ValueError("Invalid reinforcement cover: cover must be less than total depth.")
             A_layer = int(num) * (math.pi / 4) * (get_float(dia) ** 2)
             total_As += A_layer
-            # Effective depth for this layer: subtract cover plus half the bar diameter.
             d_layer = total_depth - (cover_val + get_float(dia) / 2)
             weighted_depth += A_layer * d_layer
     if total_As == 0:
         raise ValueError("No reinforcement provided. Please enter valid reinforcement details.")
     d_eff = weighted_depth / total_As
 
+    # Compute lever arm using normalized expression and cap at 0.95*d_eff:
     z_calculated = d_eff * (1 - (0.84 * (f_y / 1.15) * total_As) / ((fcu / 1.5) * beam_width * d_eff))
     z = min(z_calculated, 0.95 * d_eff)
     
     Mus = (f_y_design * total_As * z) / 1e6  # in kNm
     Muc = (0.225 * (fcu / 1.5) * beam_width * (d_eff ** 2)) / 1e6  # in kNm
-    # Apply the condition factor to the moment capacity for concrete:
-    moment_capacity = min(Mus, Muc) * condition_factor
+    moment_capacity = min(Mus, Muc) * condition_factor  # apply condition factor to concrete moment capacity
     
     Ss = (550 / d_eff) ** 0.25
     if Ss > 1.0:
@@ -136,6 +96,27 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
     
     return moment_capacity, Vu_kN, Mus, Muc, d_eff, total_As
 
+# === Timber "Setup" (no capacity formulas yet) ===
+def calculate_timber_beam(form_data):
+    timber_beam_width = get_float(form_data.get("timber_beam_width"))
+    timber_beam_depth = get_float(form_data.get("timber_beam_depth"))
+    timber_grade = form_data.get("timber_grade")
+    timber_K2 = get_float(form_data.get("timber_K2"))
+    timber_K3 = get_float(form_data.get("timber_K3"))
+    timber_K7 = (300 / timber_beam_depth) ** 0.11 if timber_beam_depth > 0 else 0
+    # For now, simply return these values in a dictionary.
+    timber_results = {
+        "Timber Beam Width (mm)": timber_beam_width,
+        "Timber Beam Depth (mm)": timber_beam_depth,
+        "Timber Grade": timber_grade,
+        "Modification Factor K2": timber_K2,
+        "Modification Factor K3": timber_K3,
+        "Modification Factor K7": timber_K7
+    }
+    # You can later add timber capacity calculations here.
+    return timber_results
+
+# === Other functions: effective length, radius, slenderness, etc. (unchanged) ===
 def calculate_effective_length(L, k1=1.0, k2=1.0):
     return k1 * k2 * L
 
@@ -416,6 +397,12 @@ def calculate_beam_capacity(form_data, loads):
             return {"error": str(e)}
         moment_capacity = moment_capacity_conc
         effective_depth = d_eff
+    elif material == "Timber":
+        # New Timber branch: simply capture inputs for now.
+        timber_results = calculate_timber_beam(form_data)
+        # For now, we don't calculate capacity so set moment and shear capacities to zero.
+        moment_capacity = 0
+        shear_capacity = 0
     else:
         moment_capacity, shear_capacity = 0, 0
 
@@ -468,6 +455,9 @@ def calculate_beam_capacity(form_data, loads):
         result["Muc (kNm)"] = round(Muc, 1)
         result["Effective Depth (mm)"] = round(effective_depth, 1)
         result["Total Reinforcement Area (mm²)"] = round(total_As, 1)
+    if material == "Timber":
+        timber_results = calculate_timber_beam(form_data)
+        result.update(timber_results)
     if loading_type in ["HA", "HB"]:
         result[f"{loading_type} UDL (kN/m)"] = round(default_loads.get("effective_udl", 0), 1)
     if loading_type == "HA":

@@ -1,4 +1,4 @@
-<<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -83,21 +83,25 @@
         document.getElementById("steel-options").style.display = "block";
         document.getElementById("concrete-options").style.display = "none";
         document.getElementById("concrete-reinf-options").style.display = "none";
+        document.getElementById("timber-options").style.display = "none";
         document.getElementById("effective-length-factors").style.display = "block";
       } else if(material === "Concrete"){
         document.getElementById("concrete-options").style.display = "block";
-        document.getElementById("steel-options").style.display = "none";
         document.getElementById("concrete-reinf-options").style.display = "block";
+        document.getElementById("steel-options").style.display = "none";
+        document.getElementById("timber-options").style.display = "none";
         document.getElementById("effective-length-factors").style.display = "none";
       } else if(material === "Timber"){
-        document.getElementById("concrete-options").style.display = "block";
+        document.getElementById("timber-options").style.display = "block";
         document.getElementById("steel-options").style.display = "none";
+        document.getElementById("concrete-options").style.display = "none";
         document.getElementById("concrete-reinf-options").style.display = "none";
         document.getElementById("effective-length-factors").style.display = "none";
       } else {
         document.getElementById("steel-options").style.display = "none";
         document.getElementById("concrete-options").style.display = "none";
         document.getElementById("concrete-reinf-options").style.display = "none";
+        document.getElementById("timber-options").style.display = "none";
         document.getElementById("effective-length-factors").style.display = "none";
       }
     }
@@ -259,7 +263,7 @@
             </div>
           </div>
           <!-- Concrete Options -->
-          <div id="concrete-options" class="mb-3">
+          <div id="concrete-options" class="mb-3" style="display:none;">
             <div class="row mb-3">
               <div class="col">
                 <label for="concrete_grade" class="form-label">Concrete Grade:</label>
@@ -279,9 +283,9 @@
             </div>
           </div>
           <!-- Concrete Reinforcement Options -->
-          <div id="concrete-reinf-options" class="mb-3">
+          <div id="concrete-reinf-options" class="mb-3" style="display:none;">
             <h5>Concrete Reinforcement Layers</h5>
-            <p>For each reinforcement layer (tension reinforcement), enter the number of bars, select the bar diameter, and enter the cover from the bottom of the beam to the centroid of the reinforcement.</p>
+            <p>Enter the number of bars, select the bar diameter, and enter the cover from the bottom of the beam to the rebar face.</p>
             <table class="table table-bordered" id="reinforcementTable">
               <thead>
                 <tr>
@@ -316,6 +320,40 @@
               <input type="number" step="0.000001" class="form-control" name="reinforcement_strength" id="reinforcement_strength" value="{{ form_data.get('reinforcement_strength','500') }}">
             </div>
           </div>
+          <!-- Timber Options -->
+          <div id="timber-options" class="mb-3" style="display:none;">
+            <h5>Timber Beam Inputs</h5>
+            <div class="row mb-3">
+              <div class="col">
+                <label for="timber_beam_width" class="form-label">Beam Width (mm):</label>
+                <input type="number" step="0.000001" class="form-control" name="timber_beam_width" id="timber_beam_width" value="{{ form_data.get('timber_beam_width','') }}">
+              </div>
+              <div class="col">
+                <label for="timber_beam_depth" class="form-label">Beam Depth (mm):</label>
+                <input type="number" step="0.000001" class="form-control" name="timber_beam_depth" id="timber_beam_depth" value="{{ form_data.get('timber_beam_depth','') }}">
+              </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col">
+                <label for="timber_grade" class="form-label">Timber Grade:</label>
+                <select class="form-select" name="timber_grade" id="timber_grade">
+                  <option value="C16" {% if form_data.get('timber_grade') == "C16" %}selected{% endif %}>C16</option>
+                  <option value="C24" {% if form_data.get('timber_grade') == "C24" %}selected{% endif %}>C24</option>
+                  <!-- Add more timber grades as needed -->
+                </select>
+              </div>
+              <div class="col">
+                <label for="timber_K2" class="form-label">Modification Factor K2 (0–1.0):</label>
+                <input type="number" step="0.01" class="form-control" name="timber_K2" id="timber_K2" value="{{ form_data.get('timber_K2','') }}">
+              </div>
+              <div class="col">
+                <label for="timber_K3" class="form-label">Modification Factor K3 (Duration):</label>
+                <input type="number" step="0.01" class="form-control" name="timber_K3" id="timber_K3" value="{{ form_data.get('timber_K3','') }}">
+              </div>
+            </div>
+            <!-- K7 will be computed automatically -->
+          </div>
+          <!-- Loading Options -->
           <div class="mb-3">
             <label for="loading_type" class="form-label">Loading Type:</label>
             <select class="form-select" name="loading_type" id="loading_type" onchange="updateLoadingTypeOptions()" required>
@@ -445,7 +483,6 @@
     </div>
     
     {% if result %}
-      {% set loading_type = result["Loading Type"] %}
       {% if result.error %}
         <div class="alert alert-danger mt-4" role="alert">
           {{ result.error }}
