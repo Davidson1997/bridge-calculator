@@ -27,7 +27,7 @@ def get_additional_load_sf(load_material):
     else:
         return 1.0
 
-# --- Steel calculations (unchanged) ---
+# === Steel Calculations (unchanged) ===
 def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_thickness, web_depth, condition_factor):
     steel_grade = steel_grade.strip()
     fy = 230.0 if steel_grade == "S230" else (275.0 if steel_grade == "S275" else 355.0)
@@ -39,7 +39,7 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     logging.debug(f"Steel: overall_depth={overall_depth} mm, Z_plastic={Z_plastic} m³, Mpe={Mpe} kNm, shear={shear_capacity} kN")
     return Mpe, shear_capacity
 
-# --- Concrete calculations (unchanged except condition factor applied) ---
+# === Concrete Calculations (unchanged except condition factor applied) ===
 def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinforcement_layers,
                                 reinforcement_strength, condition_factor,
                                 partial_factor_concrete=1.5, partial_factor_reinf=1.15,
@@ -78,7 +78,7 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
     
     Mus = (f_y_design * total_As * z) / 1e6  # in kNm
     Muc = (0.225 * (fcu / 1.5) * beam_width * (d_eff ** 2)) / 1e6  # in kNm
-    moment_capacity = min(Mus, Muc) * condition_factor  # Apply condition factor to concrete capacity
+    moment_capacity = min(Mus, Muc) * condition_factor  # condition factor applied
     
     Ss = (550 / d_eff) ** 0.25
     if Ss > 1.0:
@@ -94,27 +94,72 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
     
     return moment_capacity, Vu_kN, Mus, Muc, d_eff, total_As
 
-# --- Timber setup ---
+# === Timber Calculations ===
 def calculate_timber_beam(form_data):
+    """
+    Calculates timber beam capacities using the following formulas:
+    
+      Let:
+        - width = timber beam width (mm)
+        - depth = timber beam depth (mm)
+        - K2 = fixed at 0.8
+        - K3 = user-selected duration factor (from drop-down)
+        - K7 = (300 / depth)^0.11
+        - From timber grade, retrieve:
+            bending_parallel (MPa) and shear_parallel (MPa)
+            
+      Then:
+        b1 = (bending_parallel) * K2 * K3 * K7  
+        b2 = (shear_parallel) * K2 * K3 * K7
+        
+        Section modulus for a rectangular section:
+          Z = (width * depth^2) / 6   [mm^3]
+          
+        Timber bending moment capacity (kNm):
+          M_timber = (Z * b1) / 1e6
+          
+        Timber shear capacity (kN):
+          V_timber = (b2 * width * depth) / 1e3
+    """
     timber_beam_width = get_float(form_data.get("timber_beam_width"))
     timber_beam_depth = get_float(form_data.get("timber_beam_depth"))
     timber_grade = form_data.get("timber_grade")
-    # K2 is fixed by your design (we assume later you'll use the fixed factors for bending, tension, etc.)
-    # K3 is now chosen from a drop-down.
-    timber_K2 = 0.8  # Fixed value for factors 1,2 and 7 as per your requirements.
     timber_K3 = get_float(form_data.get("timber_K3"))
+    timber_K2 = 0.8  # fixed
     timber_K7 = (300 / timber_beam_depth) ** 0.11 if timber_beam_depth > 0 else 0
+
+    # Define timber grade properties (example values)
+    timber_properties = {
+         "C16": {"bending_parallel": 7.0, "shear_parallel": 1.0},
+         "C24": {"bending_parallel": 9.0, "shear_parallel": 1.2}
+    }
+    props = timber_properties.get(timber_grade, {"bending_parallel": 7.0, "shear_parallel": 1.0})
+    bending_parallel = props["bending_parallel"]
+    shear_parallel = props["shear_parallel"]
+
+    b1 = bending_parallel * timber_K2 * timber_K3 * timber_K7
+    b2 = shear_parallel * timber_K2 * timber_K3 * timber_K7
+
+    # Section modulus Z = (width * depth^2) / 6
+    Z = (timber_beam_width * (timber_beam_depth ** 2)) / 6.0
+    timber_moment_capacity = (Z * b1) / 1e6  # kNm
+    timber_shear_capacity = (b2 * timber_beam_width * timber_beam_depth) / 1e3  # kN
+
     timber_results = {
         "Timber Beam Width (mm)": timber_beam_width,
         "Timber Beam Depth (mm)": timber_beam_depth,
         "Timber Grade": timber_grade,
         "Modification Factor K2": timber_K2,
         "Modification Factor K3": timber_K3,
-        "Modification Factor K7": timber_K7
+        "Modification Factor K7": timber_K7,
+        "B1 (MPa)": round(b1, 3),
+        "B2 (MPa)": round(b2, 3),
+        "Timber Bending Capacity (kNm)": round(timber_moment_capacity, 3),
+        "Timber Shear Capacity (kN)": round(timber_shear_capacity, 3)
     }
     return timber_results
 
-# --- Other functions (effective length, radius, slenderness, etc.) ---
+# === Other functions (effective length, radius, slenderness, etc.) ===
 def calculate_effective_length(L, k1=1.0, k2=1.0):
     return k1 * k2 * L
 
@@ -397,10 +442,9 @@ def calculate_beam_capacity(form_data, loads):
         effective_depth = d_eff
     elif material == "Timber":
         timber_results = calculate_timber_beam(form_data)
-        result = timber_results
-        # For now, we don't calculate capacity for timber.
-        moment_capacity = 0
-        shear_capacity = 0
+        # For Timber, we now calculate bending and shear capacity as per the formulas:
+        moment_capacity = timber_results.get("Timber Bending Capacity (kNm)")
+        shear_capacity = timber_results.get("Timber Shear Capacity (kN)")
     else:
         moment_capacity, shear_capacity = 0, 0
 
@@ -454,7 +498,6 @@ def calculate_beam_capacity(form_data, loads):
         result["Effective Depth (mm)"] = round(effective_depth, 1)
         result["Total Reinforcement Area (mm²)"] = round(total_As, 1)
     if material == "Timber":
-        timber_results = calculate_timber_beam(form_data)
         result.update(timber_results)
     if loading_type in ["HA", "HB"]:
         result[f"{loading_type} UDL (kN/m)"] = round(default_loads.get("effective_udl", 0), 1)
