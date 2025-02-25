@@ -1,3 +1,16 @@
+your_project/
+ ├── app.py
+ ├── templates/
+ │    └── index.html
+ └── static/
+      └── background.jpg   (and optionally styles.css)
+```)
+
+---
+
+### app.py
+
+```python
 from flask import Flask, render_template, request
 import math
 import logging
@@ -43,34 +56,41 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     logging.debug(f"Steel: overall_depth={overall_depth} mm, Z_plastic={Z_plastic} m³, Mpe={Mpe} kNm, shear={shear_capacity} kN")
     return Mpe, shear_capacity
 
-def calculate_concrete_capacity(concrete_grade, beam_width, beam_depth, effective_depth,
-                                bar_diameter, bar_spacing, concrete_cover,
-                                reinforcement_grade, reinforcement_strength,
+def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinforcement_layers,
+                                reinforcement_strength,
                                 partial_factor_concrete=1.5, partial_factor_reinf=1.15,
-                                partial_factor_shear=1.25, partial_factor_bond=1.4):
+                                partial_factor_shear=1.25):
     """
-    Calculates the design moment and ultimate shear capacities for a reinforced concrete beam.
+    Calculates design moment and ultimate shear capacities for a reinforced concrete beam.
     
-    Two moment capacities are computed:
+    The user now enters the total depth (D). The effective depth (dₑ) is computed from a list
+    of reinforcement layers. Each layer is a dict with:
+       - num_bars (int)
+       - bar_diameter (mm)
+       - layer_cover (mm) : distance from the bottom of the beam to the centroid of that layer.
     
-    1. Reinforcement moment capacity, Mus:
-       Mus = (f_y_design * A_s * (effective_depth - a/2)) / 1e6  [kNm],
-       where f_y_design = reinforcement_strength / partial_factor_reinf,
-             A_s = n_bars * (π/4 * bar_diameter²) with n_bars = floor(beam_width / bar_spacing) (min 1),
-             a = (A_s * f_y_design) / (0.85 * (fcu/partial_factor_concrete) * beam_width).
+    f_ck and fcu are determined from the concrete grade:
+       For "C32/40": f_ck = 30 MPa, fcu = 40 MPa.
+       Otherwise: f_ck = 40 MPa, fcu = 50 MPa.
     
-    2. Concrete moment capacity, Muc:
-       Muc = [0.225 * fcu / partial_factor_concrete] * beam_width * (effective_depth)² / 1e6  [kNm],
-       where for "C32/40": fcu = 40 MPa, and for "C40/50": fcu = 50 MPa.
-       
-    The design moment capacity is taken as the lesser of Mus and Muc.
+    The design concrete strength is f_cd = f_ck / partial_factor_concrete.
+    The design reinforcement yield strength is f_y_design = reinforcement_strength / partial_factor_reinf.
     
-    Ultimate shear capacity (Vu) is computed as:
-       Ss = min([550/effective_depth]^0.25, 1.0)
-       vc = (0.24 / partial_factor_shear) * ((100 * A_s / (beam_width * effective_depth))**0.333 * (fcu)**0.333)
-       Vu = Ss * vc * beam_width * effective_depth   (converted to kN)
+    Total reinforcement area, As = sum( num_bars * (π/4)*(bar_diameter)^2 ) over all layers.
+    Effective depth dₑ = (sum( A_i × (total_depth - layer_cover) )) / As.
+    
+    Then:
+      - Reinforcement moment capacity, Mus = (f_y_design * As * (dₑ - a/2)) / 1e6 [kNm],
+        where a = (As * f_y_design) / (0.85 * (fcu/partial_factor_concrete) * beam_width).
+      - Concrete moment capacity, Muc = [0.225 * (fcu) / partial_factor_concrete] * beam_width * (dₑ)² / 1e6 [kNm].
+      - The design moment capacity is the lower of Mus and Muc.
+    
+    Ultimate shear capacity is computed as:
+       Ss = min((550/dₑ)**0.25, 1.0)
+       vc = (0.24 / partial_factor_shear) * (((100 * As) / (beam_width * dₑ))**0.333 * (fcu**0.333))
+       Vu = Ss * vc * beam_width * dₑ  (in N, then converted to kN)
     """
-    # Determine concrete strengths based on grade
+    # Determine concrete strengths
     if concrete_grade == "C32/40":
         f_ck = 30  # MPa
         fcu = 40   # MPa
@@ -79,35 +99,46 @@ def calculate_concrete_capacity(concrete_grade, beam_width, beam_depth, effectiv
         fcu = 50   # MPa
     f_cd = f_ck / partial_factor_concrete  # MPa
     
-    # Design reinforcement yield strength
     f_y_design = reinforcement_strength / partial_factor_reinf  # MPa
-
-    n_bars = math.floor(beam_width / bar_spacing)
-    if n_bars < 1:
-        n_bars = 1
-    A_s = n_bars * (math.pi / 4) * (bar_diameter ** 2)
     
-    a_val = (A_s * f_y_design) / (0.85 * (fcu / partial_factor_concrete) * beam_width)
-    Mus = (f_y_design * A_s * (effective_depth - a_val/2)) / 1e6  # kNm
+    # Sum reinforcement area from all layers and compute weighted effective depth
+    total_As = 0.0
+    weighted_depth = 0.0
+    for layer in reinforcement_layers:
+        num = int(layer.get("num_bars", 0))
+        dia = get_float(layer.get("bar_diameter"), 0)
+        cover = get_float(layer.get("layer_cover"), 0)
+        A_layer = num * (math.pi / 4) * (dia ** 2)
+        total_As += A_layer
+        # d for this layer (distance from compression fibre to layer centroid)
+        d_layer = total_depth - cover
+        weighted_depth += A_layer * d_layer
+    if total_As == 0:
+        d_eff = 0
+    else:
+        d_eff = weighted_depth / total_As  # effective depth in mm
     
-    Muc = (0.225 * fcu / partial_factor_concrete) * beam_width * (effective_depth**2) / 1e6  # kNm
+    # Compute a parameter (mm)
+    a_val = (total_As * f_y_design) / (0.85 * (fcu / partial_factor_concrete) * beam_width)
+    Mus = (f_y_design * total_As * (d_eff - a_val/2)) / 1e6  # kNm
+    Muc = (0.225 * fcu / partial_factor_concrete) * beam_width * (d_eff ** 2) / 1e6  # kNm
     
     moment_capacity = min(Mus, Muc)
     
     # Ultimate shear capacity calculation:
-    Ss = (550 / effective_depth) ** 0.25
+    Ss = (550 / d_eff) ** 0.25
     if Ss > 1.0:
         Ss = 1.0
-    vc = (0.24 / partial_factor_shear) * (((100 * A_s) / (beam_width * effective_depth)) ** 0.333 * (fcu ** 0.333))
-    Vu = Ss * vc * beam_width * effective_depth  # in N
+    vc = (0.24 / partial_factor_shear) * (((100 * total_As) / (beam_width * d_eff)) ** 0.333 * (fcu ** 0.333))
+    Vu = Ss * vc * beam_width * d_eff  # in N
     Vu_kN = Vu / 1000.0  # convert to kN
     
     logging.debug(f"Concrete: f_ck={f_ck}, fcu={fcu}, f_cd={f_cd}, f_y_design={f_y_design}")
-    logging.debug(f"Reinf: n_bars={n_bars}, A_s={A_s:.2f} mm², a={a_val:.2f} mm")
+    logging.debug(f"Reinf: total_As={total_As:.2f} mm², weighted d={weighted_depth:.2f} mm, effective depth dₑ={d_eff:.2f} mm, a={a_val:.2f} mm")
     logging.debug(f"Mus = {Mus:.6f} kNm, Muc = {Muc:.6f} kNm, chosen moment_capacity = {moment_capacity:.6f} kNm")
-    logging.debug(f"Ultimate Shear: Ss = {Ss:.4f}, vc = {vc:.4f}, Vu = {Vu_kN:.6f} kN")
+    logging.debug(f"Shear: Ss = {Ss:.4f}, vc = {vc:.4f}, Vu = {Vu_kN:.6f} kN")
     
-    return moment_capacity, Vu_kN, Mus, Muc
+    return moment_capacity, Vu_kN, Mus, Muc, d_eff, total_As
 
 def calculate_effective_length(L, k1=1.0, k2=1.0):
     return k1 * k2 * L
@@ -363,20 +394,34 @@ def calculate_beam_capacity(form_data, loads):
     elif material == "Concrete":
         concrete_grade = form_data.get("concrete_grade")
         beam_width = get_float(form_data.get("beam_width"))
-        beam_depth = get_float(form_data.get("beam_depth"))
-        effective_depth = get_float(form_data.get("effective_depth"))
-        bar_diameter = get_float(form_data.get("bar_diameter"), 16.0)
-        bar_spacing = get_float(form_data.get("bar_spacing"), 150.0)
-        concrete_cover = get_float(form_data.get("concrete_cover"), 40.0)
-        reinforcement_grade = form_data.get("reinforcement_grade", "B500")
+        # Now use beam_depth as total depth
+        total_depth = get_float(form_data.get("beam_depth"))
+        # Parse reinforcement layers from the form (dynamic fields)
+        reinf_num_list = request.form.getlist("reinforcement_num[]")
+        reinf_dia_list = request.form.getlist("reinforcement_diameter[]")
+        reinf_cover_list = request.form.getlist("reinforcement_cover[]")
         reinforcement_strength = get_float(form_data.get("reinforcement_strength"), 500.0)
-        moment_capacity_conc, shear_capacity, Mus, Muc = calculate_concrete_capacity(
-            concrete_grade, beam_width, beam_depth, effective_depth,
-            bar_diameter, bar_spacing, concrete_cover,
-            reinforcement_grade, reinforcement_strength
+        reinforcement_layers = []
+        for num, dia, cover in zip(reinf_num_list, reinf_dia_list, reinf_cover_list):
+            if num.strip() and dia.strip() and cover.strip():
+                reinforcement_layers.append({
+                    "num_bars": int(num),
+                    "bar_diameter": get_float(dia),
+                    "layer_cover": get_float(cover)
+                })
+        # If no reinforcement layers are provided, default to one layer using fallback fields:
+        if not reinforcement_layers:
+            reinforcement_layers.append({
+                "num_bars": int(get_float(form_data.get("default_num_bars"), 0)),
+                "bar_diameter": get_float(form_data.get("bar_diameter"), 16.0),
+                "layer_cover": get_float(form_data.get("concrete_cover"), 40.0)
+            })
+        moment_capacity_conc, shear_capacity, Mus, Muc, d_eff, total_As = calculate_concrete_capacity(
+            concrete_grade, beam_width, total_depth, reinforcement_layers,
+            reinforcement_strength=reinforcement_strength
         )
         moment_capacity = moment_capacity_conc
-        effective_length = L_actual
+        effective_depth = d_eff  # effective depth computed from reinforcement layers
     else:
         moment_capacity, shear_capacity = 0, 0
 
@@ -427,6 +472,8 @@ def calculate_beam_capacity(form_data, loads):
     if material == "Concrete":
         result["Mus (kNm)"] = round(Mus, 1)
         result["Muc (kNm)"] = round(Muc, 1)
+        result["Effective Depth (mm)"] = round(effective_depth, 1)
+        result["Total Reinforcement Area (mm²)"] = round(total_As, 1)
     if loading_type in ["HA", "HB"]:
         result[f"{loading_type} UDL (kN/m)"] = round(default_loads.get("effective_udl", 0), 1)
     if loading_type == "HA":
