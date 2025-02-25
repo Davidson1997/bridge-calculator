@@ -52,6 +52,15 @@
     tr:nth-child(even) {
       background-color: #f4f4f4;
     }
+    .process-box {
+      margin-top: 15px;
+      padding: 10px;
+      background-color: #f9f9f9;
+      border: 1px solid #ccc;
+      white-space: pre-wrap;
+      font-size: 12px;
+      line-height: 1.4;
+    }
   </style>
 </head>
 <body>
@@ -81,7 +90,7 @@
     </table>
     
     <div class="section-title">Detailed Calculation Process</div>
-    <div style="margin-top: 15px; padding: 10px; background-color: #f9f9f9; border: 1px solid #ccc;">
+    <div class="process-box">
       {{ result["Calculation Process"] | safe }}
     </div>
     
@@ -111,4 +120,3 @@
   </div>
 </body>
 </html>
-

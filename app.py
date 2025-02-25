@@ -6,7 +6,7 @@ from weasyprint import HTML
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-# Make Python's built-in zip available in Jinja2 templates
+# Make built-in zip available in Jinja2 templates
 app.jinja_env.globals.update(zip=zip)
 
 def get_float(value, default=0.0):
@@ -28,19 +28,19 @@ def get_additional_load_sf(load_material):
     else:
         return 1.0
 
-# === Steel Calculations (unchanged) ===
+# ---------------- Steel Calculations ----------------
 def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_thickness, web_depth, condition_factor):
     steel_grade = steel_grade.strip()
     fy = 230.0 if steel_grade == "S230" else (275.0 if steel_grade == "S275" else 355.0)
-    overall_depth = web_depth + 2 * flange_thickness
+    overall_depth = web_depth + 2 * flange_thickness  # overall depth in mm
     Z_plastic = (flange_width * flange_thickness * (overall_depth - flange_thickness) +
-                 (web_thickness * (overall_depth - 2 * flange_thickness)**2) / 4) / 1e6
-    Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
-    shear_capacity = (fy * web_thickness * overall_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
-    logging.debug(f"Steel: overall_depth={overall_depth} mm, Z_plastic={Z_plastic} m³, Mpe={Mpe} kNm, shear={shear_capacity} kN")
+                 (web_thickness * (overall_depth - 2 * flange_thickness)**2) / 4) / 1e6  # in m³
+    Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)  # kNm
+    shear_capacity = (fy * web_thickness * overall_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)  # kN
+    logging.debug(f"Steel: overall_depth={overall_depth} mm, Z_plastic={Z_plastic:.6f} m³, Mpe={Mpe:.6f} kNm, shear={shear_capacity:.6f} kN")
     return Mpe, shear_capacity
 
-# === Concrete Calculations (unchanged except condition factor applied) ===
+# ---------------- Concrete Calculations ----------------
 def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinforcement_layers,
                                 reinforcement_strength, condition_factor,
                                 partial_factor_concrete=1.5, partial_factor_reinf=1.15,
@@ -73,7 +73,6 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
     if total_As == 0:
         raise ValueError("No reinforcement provided. Please enter valid reinforcement details.")
     d_eff = weighted_depth / total_As
-
     z_calculated = d_eff * (1 - (0.84 * (f_y / 1.15) * total_As) / ((fcu / 1.5) * beam_width * d_eff))
     z = min(z_calculated, 0.95 * d_eff)
     
@@ -88,14 +87,14 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
     Vu = Ss * vc * beam_width * d_eff
     Vu_kN = Vu / 1000.0
 
-    logging.debug(f"Concrete: f_ck={f_ck}, fcu={fcu}, f_cd={f_cd}, f_y_design={f_y_design}")
+    logging.debug(f"Concrete: f_ck={f_ck}, fcu={fcu}, f_cd={f_cd:.2f}, f_y_design={f_y_design:.2f}")
     logging.debug(f"Reinf: total_As={total_As:.2f} mm², weighted_depth={weighted_depth:.2f} mm, d_eff={d_eff:.2f} mm, z_calculated={z_calculated:.2f} mm, z={z:.2f} mm")
     logging.debug(f"Mus = {Mus:.6f} kNm, Muc = {Muc:.6f} kNm, chosen moment_capacity = {moment_capacity:.6f} kNm")
     logging.debug(f"Ultimate Shear: Ss = {Ss:.4f}, vc = {vc:.4f}, Vu = {Vu_kN:.6f} kN")
     
     return moment_capacity, Vu_kN, Mus, Muc, d_eff, total_As
 
-# === Timber Calculations (updated with timber properties) ===
+# ---------------- Timber Calculations ----------------
 def calculate_timber_beam(form_data):
     timber_beam_width = get_float(form_data.get("timber_beam_width"))
     timber_beam_depth = get_float(form_data.get("timber_beam_depth"))
@@ -138,7 +137,7 @@ def calculate_timber_beam(form_data):
     }
     return timber_results
 
-# === Other Functions (Effective Length, Radius, Slenderness, etc.) ===
+# ---------------- Other Functions ----------------
 def calculate_effective_length(L, k1=1.0, k2=1.0):
     return k1 * k2 * L
 
@@ -377,6 +376,7 @@ def calculate_beam_capacity(form_data, loads):
     access_str = form_data.get("access_type", "Company")
     access_factor = 1.5 if access_str.lower() == "public" else 1.3
 
+    calculation_process = ""
     if material == "Steel":
         steel_grade = form_data.get("steel_grade")
         flange_width = get_float(form_data.get("flange_width"))
@@ -390,6 +390,24 @@ def calculate_beam_capacity(form_data, loads):
         except Exception as e:
             logging.error("Error in BD37 capacity calculation: %s", e)
             moment_capacity = Mpe
+        # Build detailed calculation process for steel
+        calculation_process += "Steel Beam Calculation Process:\n"
+        calculation_process += "----------------------------------\n"
+        calculation_process += f"Steel Grade: {steel_grade}\n"
+        calculation_process += f"Flange: Width = {flange_width} mm, Thickness = {flange_thickness} mm\n"
+        calculation_process += f"Web: Thickness = {web_thickness} mm, Depth = {web_depth} mm\n"
+        overall_depth = web_depth + 2 * flange_thickness
+        calculation_process += f"Overall Depth = {web_depth} + 2 x {flange_thickness} = {overall_depth} mm\n"
+        Z_plastic = (flange_width * flange_thickness * (overall_depth - flange_thickness) +
+                     (web_thickness * (overall_depth - 2 * flange_thickness)**2) / 4) / 1e6
+        calculation_process += f"Plastic Section Modulus, Z_plastic = {Z_plastic:.6f} m³\n"
+        fy = 230.0 if steel_grade.strip() == "S230" else (275.0 if steel_grade.strip() == "S275" else 355.0)
+        calculation_process += f"Yield Strength, fy = {fy} N/mm²\n"
+        calculation_process += f"Mpe = (fy x Z_plastic x condition factor) / (1.05 x 1.1) = {Mpe:.3f} kNm\n"
+        calculation_process += f"Slenderness = {slenderness:.3f}, X = {X:.3f}\n"
+        calculation_process += f"Lookup Factor from table = {get_lookup_factor(X):.3f}\n"
+        calculation_process += f"Adjusted Moment Capacity, MR = Lookup Factor x Mpe = {moment_capacity:.3f} kNm\n"
+        calculation_process += "----------------------------------\n"
     elif material == "Concrete":
         concrete_grade = form_data.get("concrete_grade")
         beam_width = get_float(form_data.get("beam_width"))
@@ -419,13 +437,30 @@ def calculate_beam_capacity(form_data, loads):
             return {"error": str(e)}
         moment_capacity = moment_capacity_conc
         effective_depth = d_eff
+        calculation_process += "Concrete Beam Calculation Process:\n"
+        calculation_process += "----------------------------------\n"
+        calculation_process += f"Concrete Grade: {concrete_grade}\n"
+        calculation_process += f"Beam Width = {beam_width} mm, Total Depth = {total_depth} mm\n"
+        calculation_process += f"Effective Depth (d_eff) = {effective_depth:.3f} mm\n"
+        calculation_process += f"Total Reinforcement Area = {total_As:.3f} mm²\n"
+        calculation_process += f"Mus (Reinforcement Moment) = {Mus:.3f} kNm\n"
+        calculation_process += f"Muc (Concrete Moment) = {Muc:.3f} kNm\n"
+        calculation_process += f"Chosen Moment Capacity = min(Mus, Muc) x condition factor = {moment_capacity:.3f} kNm\n"
+        calculation_process += "----------------------------------\n"
     elif material == "Timber":
         timber_results = calculate_timber_beam(form_data)
         moment_capacity = timber_results.get("Timber Bending Capacity (kNm)")
         shear_capacity = timber_results.get("Timber Shear Capacity (kN)")
+        calculation_process += "Timber Beam Calculation Process:\n"
+        calculation_process += "----------------------------------\n"
+        calculation_process += f"Beam Width = {form_data.get('timber_beam_width')} mm, Beam Depth = {form_data.get('timber_beam_depth')} mm\n"
+        calculation_process += f"Timber Grade: {form_data.get('timber_grade')}\n"
+        calculation_process += f"Calculated Bending Capacity = {moment_capacity} kNm\n"
+        calculation_process += "----------------------------------\n"
     else:
         moment_capacity, shear_capacity = 0, 0
-
+        calculation_process = "No calculation process available."
+    
     reduction_factor = 1.0
     if effective_length < span_length:
         reduction_factor = effective_length / span_length
@@ -464,7 +499,8 @@ def calculate_beam_capacity(form_data, loads):
         "Loading Type": loading_type,
         "Condition Factor": round(condition_factor, 1),
         "Loaded Carriageway Width (m)": round(loaded_width, 1),
-        "Access Type": access_str
+        "Access Type": access_str,
+        "Calculation Process": calculation_process
     }
     if material == "Steel":
         slenderness, F_param, v, r = calculate_slenderness(effective_length, web_depth, flange_thickness, flange_width, web_thickness)
@@ -542,7 +578,6 @@ def calculate():
                            reinforcement_diameters=reinforcement_diameters,
                            reinforcement_covers=reinforcement_covers)
 
-# --- New PDF download route ---
 @app.route("/download-pdf", methods=["POST"])
 def download_pdf():
     form_data = request.form.to_dict()
