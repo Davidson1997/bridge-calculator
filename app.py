@@ -47,7 +47,7 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     return Mpe, shear_capacity
 
 def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinforcement_layers,
-                                reinforcement_strength,
+                                reinforcement_strength, condition_factor,
                                 partial_factor_concrete=1.5, partial_factor_reinf=1.15,
                                 partial_factor_shear=1.25):
     """
@@ -77,7 +77,7 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
          Mus = ( (f_y/1.15) * As * z ) / 1e6  (in kNm)
     Crushing-controlled moment capacity:
          Muc = [0.225*(fcu/1.5)] * b * d_eff² / 1e6
-    The design moment capacity is the lower of Mus and Muc.
+    The design moment capacity is the lower of Mus and Muc, multiplied by the condition factor.
     
     Ultimate shear capacity, Vu:
          Ss = min((550/d_eff)**0.25, 1.0)
@@ -107,19 +107,20 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
                 raise ValueError("Invalid reinforcement cover: cover must be less than total depth.")
             A_layer = int(num) * (math.pi / 4) * (get_float(dia) ** 2)
             total_As += A_layer
-            d_layer = total_depth - (cover_val + get_float(dia)/2)
+            # Effective depth for this layer: subtract cover plus half the bar diameter.
+            d_layer = total_depth - (cover_val + get_float(dia) / 2)
             weighted_depth += A_layer * d_layer
     if total_As == 0:
         raise ValueError("No reinforcement provided. Please enter valid reinforcement details.")
     d_eff = weighted_depth / total_As
 
-    # Calculate lever arm using normalized expression and then cap to 0.95*d_eff
     z_calculated = d_eff * (1 - (0.84 * (f_y / 1.15) * total_As) / ((fcu / 1.5) * beam_width * d_eff))
     z = min(z_calculated, 0.95 * d_eff)
     
     Mus = (f_y_design * total_As * z) / 1e6  # in kNm
     Muc = (0.225 * (fcu / 1.5) * beam_width * (d_eff ** 2)) / 1e6  # in kNm
-    moment_capacity = min(Mus, Muc)
+    # Apply the condition factor to the moment capacity for concrete:
+    moment_capacity = min(Mus, Muc) * condition_factor
     
     Ss = (550 / d_eff) ** 0.25
     if Ss > 1.0:
@@ -409,7 +410,7 @@ def calculate_beam_capacity(form_data, loads):
         try:
             moment_capacity_conc, shear_capacity, Mus, Muc, d_eff, total_As = calculate_concrete_capacity(
                 concrete_grade, beam_width, total_depth, reinforcement_layers,
-                reinforcement_strength=reinforcement_strength
+                reinforcement_strength=reinforcement_strength, condition_factor=condition_factor
             )
         except Exception as e:
             return {"error": str(e)}
