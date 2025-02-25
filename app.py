@@ -40,7 +40,7 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
                  (web_thickness * (overall_depth - 2 * flange_thickness)**2) / 4) / 1e6
     Mpe = (fy * Z_plastic * condition_factor) / (1.05 * 1.1)
     shear_capacity = (fy * web_thickness * overall_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)
-    logging.debug(f"Overall depth = {overall_depth:.6f} mm, Z_plastic = {Z_plastic:.6f} m³, Mpe = {Mpe:.6f} kNm, shear = {shear_capacity:.6f} kN")
+    logging.debug(f"Steel: overall_depth={overall_depth} mm, Z_plastic={Z_plastic} m³, Mpe={Mpe} kNm, shear={shear_capacity} kN")
     return Mpe, shear_capacity
 
 def calculate_concrete_capacity(concrete_grade, beam_width, beam_depth, effective_depth,
@@ -49,56 +49,35 @@ def calculate_concrete_capacity(concrete_grade, beam_width, beam_depth, effectiv
                                 partial_factor_concrete=1.5, partial_factor_reinf=1.15,
                                 partial_factor_shear=1.25, partial_factor_bond=1.4):
     """
-    Calculates the design moment and shear capacity for a reinforced concrete beam.
-    Inputs (all dimensions in mm, strengths in MPa):
-      - concrete_grade: "C32/40" or "C40/50" (f_ck = 32 or 40 MPa)
-      - beam_width: width of the beam (mm)
-      - beam_depth: overall depth of the beam (mm)
-      - effective_depth: distance from compression fiber to reinforcement centroid (mm)
-      - bar_diameter: diameter of reinforcement bars (mm)
-      - bar_spacing: center-to-center spacing of bars (mm)
-      - concrete_cover: cover to reinforcement (mm)
-      - reinforcement_grade: e.g. "B500" (for information)
-      - reinforcement_strength: yield strength of reinforcement (MPa)
-      - partial_factor_concrete: typically 1.5
-      - partial_factor_reinf: typically 1.15
-      - partial_factor_shear: typically 1.25
-      - partial_factor_bond: typically 1.4 (not directly used here)
-    Returns:
-      moment_capacity (kNm), shear_capacity (kN)
+    Calculates the design moment and shear capacities for a reinforced concrete beam.
+    
+    - f_ck: 32 MPa for "C32/40", 40 MPa for "C40/50".
+    - f_cd = f_ck / 1.5.
+    - f_yd = reinforcement_strength / 1.15.
+    - Number of bars = floor(beam_width / bar_spacing) (min 1).
+    - A_s = n_bars * (π/4 * bar_diameter²).
+    - Lever arm: a = (A_s * f_yd) / (0.85 * f_cd * beam_width).
+    - Moment capacity: M_rd = A_s * f_yd * (effective_depth - a/2) / 1e6 (kNm).
+    - Shear capacity: V_rd = (0.5 * beam_width * effective_depth * sqrt(f_cd)) / (1000 * partial_factor_shear) (kN).
     """
-    # Determine concrete compressive strength (f_ck)
     if concrete_grade == "C32/40":
-        f_ck = 32  # MPa
+        f_ck = 32
     else:
-        f_ck = 40  # MPa, assume C40/50
-    # Design compressive strength
-    f_cd = f_ck / partial_factor_concrete  # MPa
+        f_ck = 40
+    f_cd = f_ck / partial_factor_concrete
+    f_yd = reinforcement_strength / partial_factor_reinf
 
-    # Design yield strength of reinforcement
-    f_yd = reinforcement_strength / partial_factor_reinf  # MPa
-
-    # Determine number of bars (assume bars are evenly spaced across the beam width)
     n_bars = math.floor(beam_width / bar_spacing)
     if n_bars < 1:
         n_bars = 1
-
-    # Area of reinforcement (mm²)
     A_s = n_bars * (math.pi / 4) * (bar_diameter ** 2)
-
-    # Calculate lever arm parameter 'a' (mm)
     a_val = (A_s * f_yd) / (0.85 * f_cd * beam_width)
-
-    # Moment capacity (M_rd) in kNm
     M_rd = (A_s * f_yd * (effective_depth - a_val / 2)) / 1e6
-
-    # Simplified shear capacity (V_rd) in kN
     V_rd = (0.5 * beam_width * effective_depth * math.sqrt(f_cd)) / (1e3 * partial_factor_shear)
-
-    logging.debug(f"Concrete: f_ck={f_ck}, f_cd={f_cd}, f_yd={f_yd}")
-    logging.debug(f"Reinforcement: n_bars={n_bars}, A_s={A_s:.2f} mm², a={a_val:.2f} mm")
-    logging.debug(f"Moment Capacity = {M_rd:.6f} kNm, Shear Capacity = {V_rd:.6f} kN")
     
+    logging.debug(f"Concrete: f_ck={f_ck}, f_cd={f_cd}, f_yd={f_yd}")
+    logging.debug(f"Reinf: n_bars={n_bars}, A_s={A_s:.2f} mm², a={a_val:.2f} mm")
+    logging.debug(f"Concrete capacities: M_rd={M_rd:.6f} kNm, V_rd={V_rd:.6f} kN")
     return M_rd, V_rd
 
 def calculate_effective_length(L, k1=1.0, k2=1.0):
@@ -107,17 +86,15 @@ def calculate_effective_length(L, k1=1.0, k2=1.0):
 def calculate_radius_of_gyration_strong(B_f, t_f, t_w, web_depth):
     """
     Calculates r_x for a symmetric I-beam about the strong axis.
-    Overall depth: d = web_depth + 2*t_f
-    Gross area: A = 2*(B_f*t_f) + t_w*(d - 2*t_f)
-    Moment of inertia about the strong axis:
-         I_x = (t_w^3*(d - 2*t_f))/12 + 2*(t_f*(B_f^3))/12
+    d = web_depth + 2*t_f, A = 2*(B_f*t_f) + t_w*(d - 2*t_f)
+    I_x = (t_w³*(d-2*t_f))/12 + 2*(t_f*(B_f³))/12.
     Returns r_x in meters.
     """
     d = web_depth + 2 * t_f
     A = 2 * (B_f * t_f) + t_w * (d - 2 * t_f)
     I_x = (t_w ** 3 * (d - 2 * t_f)) / 12.0 + 2 * ((t_f * (B_f ** 3)) / 12.0)
     r_x = math.sqrt(I_x / A)
-    logging.debug(f"(Strong axis) A = {A:.6f} mm², I_x = {I_x:.6f} mm⁴, r_x = {r_x:.6f} mm")
+    logging.debug(f"Strong axis: A={A} mm², I_x={I_x} mm⁴, r_x={r_x} mm")
     return r_x / 1000.0
 
 lookup_table = {
@@ -151,7 +128,7 @@ def get_lookup_factor(X):
         if keys[i] <= X <= keys[i+1]:
             fraction = (X - keys[i]) / (keys[i+1] - keys[i])
             factor = lookup_table[keys[i]] + fraction * (lookup_table[keys[i+1]] - lookup_table[keys[i]])
-            logging.debug(f"X = {X:.6f}, Lookup Factor = {factor:.6f}")
+            logging.debug(f"X={X}, Lookup Factor={factor}")
             return factor
     return 1.0
 
@@ -180,14 +157,14 @@ def calculate_v_from_F(F):
         20: 0.468000
     }
     if F <= 0:
-        return 1.000000
+        return 1.0
     if F >= 20:
         return table[20]
     lower = int(math.floor(F))
     upper = lower + 1
     fraction = F - lower
     v_val = table[lower] + fraction * (table[upper] - table[lower])
-    logging.debug(f"F = {F:.6f}, v = {v_val:.6f}")
+    logging.debug(f"F={F}, v={v_val}")
     return v_val
 
 def calculate_slenderness(effective_length, web_depth, flange_thickness, B_f, t_w):
@@ -196,7 +173,7 @@ def calculate_slenderness(effective_length, web_depth, flange_thickness, B_f, t_
     F_param = (effective_length * flange_thickness) / (r * d)
     v = calculate_v_from_F(F_param)
     slenderness = (effective_length / r) * v
-    logging.debug(f"Effective Length = {effective_length:.6f} m, r = {r:.6f} m, F = {F_param:.6f}, v = {v:.6f}, slenderness = {slenderness:.6f}")
+    logging.debug(f"Effective Length={effective_length}, r={r}, F={F_param}, v={v}, slenderness={slenderness}")
     return slenderness, F_param, v, r
 
 def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_width, flange_thickness, web_thickness, web_depth):
@@ -205,55 +182,8 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
     X = slenderness * math.sqrt(fy / 355.0) if Mpe != 0 else 0.0
     lookup_factor = get_lookup_factor(X)
     MR = lookup_factor * Mpe
-    logging.debug(f"fy = {fy:.6f}, slenderness = {slenderness:.6f}, X = {X:.6f}, Lookup Factor = {lookup_factor:.6f}, MR = {MR:.6f}")
+    logging.debug(f"Steel: fy={fy}, slenderness={slenderness}, X={X}, Lookup Factor={lookup_factor}, MR={MR}")
     return MR, slenderness, X
-
-### Updated Concrete Capacity Calculation Function
-def calculate_concrete_capacity(concrete_grade, beam_width, beam_depth, effective_depth,
-                                bar_diameter, bar_spacing, concrete_cover,
-                                reinforcement_grade, reinforcement_strength,
-                                partial_factor_concrete=1.5, partial_factor_reinf=1.15,
-                                partial_factor_shear=1.25, partial_factor_bond=1.4):
-    """
-    Calculates design moment and shear capacities for a reinforced concrete beam.
-    All dimensions are in mm and strengths in MPa.
-    
-    f_ck is taken as 32 MPa for "C32/40" and 40 MPa for "C40/50".
-    Design concrete strength: f_cd = f_ck / 1.5.
-    Design reinforcement yield strength: f_yd = reinforcement_strength / 1.15.
-    
-    Number of bars is computed as floor(beam_width / bar_spacing) (at least 1).
-    Reinforcement area, A_s = n_bars * (π/4 * bar_diameter²).
-    Lever arm: a = (A_s * f_yd) / (0.85 * f_cd * beam_width).
-    Moment capacity: M_rd = A_s * f_yd * (effective_depth - a/2) / 1e6 (kNm).
-    Shear capacity: V_rd = [0.5 * beam_width * effective_depth * sqrt(f_cd)] / (1000 * partial_factor_shear) (kN).
-    """
-    if concrete_grade == "C32/40":
-        f_ck = 32
-    else:
-        f_ck = 40
-    f_cd = f_ck / partial_factor_concrete
-    f_yd = reinforcement_strength / partial_factor_reinf
-
-    n_bars = math.floor(beam_width / bar_spacing)
-    if n_bars < 1:
-        n_bars = 1
-    A_s = n_bars * (math.pi / 4) * (bar_diameter ** 2)
-    # Use the provided effective_depth (d_eff)
-    d_eff = effective_depth
-    a_val = (A_s * f_yd) / (0.85 * f_cd * beam_width)
-    M_rd = (A_s * f_yd * (d_eff - a_val / 2)) / 1e6
-    V_rd = (0.5 * beam_width * effective_depth * math.sqrt(f_cd)) / (1e3 * partial_factor_shear)
-    
-    logging.debug(f"Concrete: f_ck={f_ck}, f_cd={f_cd}, f_yd={f_yd}")
-    logging.debug(f"Reinforcement: n_bars={n_bars}, A_s={A_s:.2f} mm², a={a_val:.2f} mm")
-    logging.debug(f"Moment Capacity = {M_rd:.6f} kNm, Shear Capacity = {V_rd:.6f} kN")
-    
-    return M_rd, V_rd
-
-##############################
-# Existing Vehicle Loads and Applied Loads functions remain unchanged below
-##############################
 
 def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_dispersion="none", axle_mode="per beam"):
     vt = vehicle_type.strip().lower()
@@ -287,7 +217,6 @@ def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_
         reduction_factor = 1.0
     P1 *= reduction_factor
     P2 *= reduction_factor
-
     worst_M = 0.0
     worst_V = 0.0
     a_step = 0.01
@@ -414,11 +343,11 @@ def calculate_beam_capacity(form_data, loads):
         beam_depth = get_float(form_data.get("beam_depth"))
         effective_depth = get_float(form_data.get("effective_depth"))
         # New reinforcement details for concrete:
-        bar_diameter = get_float(form_data.get("bar_diameter"), 16.0)          # default 16 mm
-        bar_spacing = get_float(form_data.get("bar_spacing"), 150.0)            # default 150 mm
-        concrete_cover = get_float(form_data.get("concrete_cover"), 40.0)       # default 40 mm
+        bar_diameter = get_float(form_data.get("bar_diameter"), 16.0)
+        bar_spacing = get_float(form_data.get("bar_spacing"), 150.0)
+        concrete_cover = get_float(form_data.get("concrete_cover"), 40.0)
         reinforcement_grade = form_data.get("reinforcement_grade", "B500")
-        reinforcement_strength = get_float(form_data.get("reinforcement_strength"), 500.0)  # default 500 MPa
+        reinforcement_strength = get_float(form_data.get("reinforcement_strength"), 500.0)
         moment_capacity, shear_capacity = calculate_concrete_capacity(
             concrete_grade, beam_width, beam_depth, effective_depth,
             bar_diameter, bar_spacing, concrete_cover,
@@ -435,12 +364,11 @@ def calculate_beam_capacity(form_data, loads):
 
     applied_moment, applied_shear, default_loads, additional_dead, additional_live = calculate_applied_loads(span_length, loading_type, loads, loaded_width, access_factor)
     
-    # Self-weight for steel with partial factor 1.05
     self_weight_moment = 0.0
     if material == "Steel":
-        A_steel = 2 * (flange_width * flange_thickness) + web_thickness * web_depth  # in mm²
-        self_weight = (A_steel / 1e6) * 7850 * 9.81 / 1000  # kN/m
-        self_weight_moment = ((self_weight * span_length**2) / 8) * 1.05  # kNm
+        A_steel = 2 * (flange_width * flange_thickness) + web_thickness * web_depth
+        self_weight = (A_steel / 1e6) * 7850 * 9.81 / 1000
+        self_weight_moment = ((self_weight * span_length**2) / 8) * 1.05
 
     total_applied_moment = applied_moment + self_weight_moment
     utilisation_ratio = total_applied_moment / moment_capacity if moment_capacity > 0 else float('inf')
@@ -478,10 +406,9 @@ def calculate_beam_capacity(form_data, loads):
     if loading_type == "HA":
         result["HA KEL (kN)"] = round(default_loads.get("kel", 0), 1)
     
-    # Vehicle Loads analysis:
     vehicle_type = form_data.get("vehicle_type", "").strip()
     vehicle_impact_factor = get_float(form_data.get("vehicle_impact_factor"), 1.0)
-    wheel_dispersion = form_data.get("wheel_dispersion", "none").strip()  # expected "none", "25", or "50"
+    wheel_dispersion = form_data.get("wheel_dispersion", "none").strip()
     axle_mode = form_data.get("axle_load_mode", "per beam").strip()
     if vehicle_type and vehicle_type.lower() != "none":
         vehicle_results = calculate_vehicle_loads(span_length, vehicle_type, vehicle_impact_factor, wheel_dispersion, axle_mode)
@@ -534,4 +461,3 @@ def calculate():
 
 if __name__ == "__main__":
     app.run(debug=True)
-
