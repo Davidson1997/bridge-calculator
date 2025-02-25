@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -274,8 +274,8 @@
               </div>
             </div>
             <div class="mb-3">
-              <label for="beam_depth" class="form-label">Total Depth (mm):</label>
-              <input type="number" step="0.000001" class="form-control" name="beam_depth" id="beam_depth" value="{{ form_data.get('beam_depth','') }}">
+              <label for="concrete_beam_depth" class="form-label">Total Depth (mm):</label>
+              <input type="number" step="0.000001" class="form-control" name="concrete_beam_depth" id="concrete_beam_depth" value="{{ form_data.get('concrete_beam_depth', form_data.get('beam_depth','')) }}">
             </div>
           </div>
           <!-- Concrete Reinforcement Options -->

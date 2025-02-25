@@ -94,7 +94,6 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
     ):
         if num != "" and dia != "" and cover != "":
             cover_val = get_float(cover)
-            # Check that cover is less than total_depth
             if cover_val >= total_depth:
                 raise ValueError("Invalid reinforcement cover: cover must be less than total depth.")
             A_layer = int(num) * (math.pi / 4) * (get_float(dia) ** 2)
@@ -378,10 +377,9 @@ def calculate_beam_capacity(form_data, loads):
     elif material == "Concrete":
         concrete_grade = form_data.get("concrete_grade")
         beam_width = get_float(form_data.get("beam_width"))
-        # Use concrete_beam_depth if provided; if not, fall back to steel beam_depth.
-        total_depth = get_float(form_data.get("concrete_beam_depth"))
+        total_depth = get_float(form_data.get("concrete_beam_depth"), "")
         if total_depth == 0:
-            total_depth = get_float(form_data.get("beam_depth"))
+            total_depth = get_float(form_data.get("beam_depth"), "")
         reinforcement_nums = request.form.getlist("reinforcement_num[]")
         reinforcement_diameters = request.form.getlist("reinforcement_diameter[]")
         reinforcement_covers = request.form.getlist("reinforcement_cover[]")
