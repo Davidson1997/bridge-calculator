@@ -27,7 +27,7 @@ def get_additional_load_sf(load_material):
     else:
         return 1.0
 
-# === Steel Calculations (already in place) ===
+# --- Steel calculations (unchanged) ---
 def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_thickness, web_depth, condition_factor):
     steel_grade = steel_grade.strip()
     fy = 230.0 if steel_grade == "S230" else (275.0 if steel_grade == "S275" else 355.0)
@@ -39,7 +39,7 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     logging.debug(f"Steel: overall_depth={overall_depth} mm, Z_plastic={Z_plastic} m³, Mpe={Mpe} kNm, shear={shear_capacity} kN")
     return Mpe, shear_capacity
 
-# === Concrete Calculations (with updated lever arm and condition factor applied) ===
+# --- Concrete calculations (unchanged except condition factor applied) ---
 def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinforcement_layers,
                                 reinforcement_strength, condition_factor,
                                 partial_factor_concrete=1.5, partial_factor_reinf=1.15,
@@ -56,7 +56,6 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
 
     total_As = 0.0
     weighted_depth = 0.0
-    # Here we assume the reinforcement inputs are submitted with these names.
     for num, dia, cover in zip(
         request.form.getlist("reinforcement_num[]"),
         request.form.getlist("reinforcement_diameter[]"),
@@ -74,13 +73,12 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
         raise ValueError("No reinforcement provided. Please enter valid reinforcement details.")
     d_eff = weighted_depth / total_As
 
-    # Compute lever arm using normalized expression and cap at 0.95*d_eff:
     z_calculated = d_eff * (1 - (0.84 * (f_y / 1.15) * total_As) / ((fcu / 1.5) * beam_width * d_eff))
     z = min(z_calculated, 0.95 * d_eff)
     
     Mus = (f_y_design * total_As * z) / 1e6  # in kNm
     Muc = (0.225 * (fcu / 1.5) * beam_width * (d_eff ** 2)) / 1e6  # in kNm
-    moment_capacity = min(Mus, Muc) * condition_factor  # apply condition factor to concrete moment capacity
+    moment_capacity = min(Mus, Muc) * condition_factor  # Apply condition factor to concrete capacity
     
     Ss = (550 / d_eff) ** 0.25
     if Ss > 1.0:
@@ -96,15 +94,16 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
     
     return moment_capacity, Vu_kN, Mus, Muc, d_eff, total_As
 
-# === Timber "Setup" (no capacity formulas yet) ===
+# --- Timber setup ---
 def calculate_timber_beam(form_data):
     timber_beam_width = get_float(form_data.get("timber_beam_width"))
     timber_beam_depth = get_float(form_data.get("timber_beam_depth"))
     timber_grade = form_data.get("timber_grade")
-    timber_K2 = get_float(form_data.get("timber_K2"))
+    # K2 is fixed by your design (we assume later you'll use the fixed factors for bending, tension, etc.)
+    # K3 is now chosen from a drop-down.
+    timber_K2 = 0.8  # Fixed value for factors 1,2 and 7 as per your requirements.
     timber_K3 = get_float(form_data.get("timber_K3"))
     timber_K7 = (300 / timber_beam_depth) ** 0.11 if timber_beam_depth > 0 else 0
-    # For now, simply return these values in a dictionary.
     timber_results = {
         "Timber Beam Width (mm)": timber_beam_width,
         "Timber Beam Depth (mm)": timber_beam_depth,
@@ -113,10 +112,9 @@ def calculate_timber_beam(form_data):
         "Modification Factor K3": timber_K3,
         "Modification Factor K7": timber_K7
     }
-    # You can later add timber capacity calculations here.
     return timber_results
 
-# === Other functions: effective length, radius, slenderness, etc. (unchanged) ===
+# --- Other functions (effective length, radius, slenderness, etc.) ---
 def calculate_effective_length(L, k1=1.0, k2=1.0):
     return k1 * k2 * L
 
@@ -398,9 +396,9 @@ def calculate_beam_capacity(form_data, loads):
         moment_capacity = moment_capacity_conc
         effective_depth = d_eff
     elif material == "Timber":
-        # New Timber branch: simply capture inputs for now.
         timber_results = calculate_timber_beam(form_data)
-        # For now, we don't calculate capacity so set moment and shear capacities to zero.
+        result = timber_results
+        # For now, we don't calculate capacity for timber.
         moment_capacity = 0
         shear_capacity = 0
     else:

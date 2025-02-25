@@ -343,15 +343,21 @@
                 </select>
               </div>
               <div class="col">
-                <label for="timber_K2" class="form-label">Modification Factor K2 (0–1.0):</label>
-                <input type="number" step="0.01" class="form-control" name="timber_K2" id="timber_K2" value="{{ form_data.get('timber_K2','') }}">
+                <label for="timber_K2" class="form-label">Modification Factor K2:</label>
+                <!-- K2 is fixed as per your design -->
+                <input type="text" class="form-control" name="timber_K2" id="timber_K2" value="0.8" readonly>
               </div>
               <div class="col">
                 <label for="timber_K3" class="form-label">Modification Factor K3 (Duration):</label>
-                <input type="number" step="0.01" class="form-control" name="timber_K3" id="timber_K3" value="{{ form_data.get('timber_K3','') }}">
+                <select class="form-select" name="timber_K3" id="timber_K3">
+                  <option value="1.0" {% if form_data.get('timber_K3') == "1.0" %}selected{% endif %}>Long Term (1.0)</option>
+                  <option value="1.25" {% if form_data.get('timber_K3') == "1.25" %}selected{% endif %}>Medium Term (1.25)</option>
+                  <option value="1.5" {% if form_data.get('timber_K3') == "1.5" %}selected{% endif %}>Short Term (1.5)</option>
+                  <option value="1.75" {% if form_data.get('timber_K3') == "1.75" %}selected{% endif %}>Very Short Term (1.75)</option>
+                </select>
               </div>
             </div>
-            <!-- K7 will be computed automatically -->
+            <!-- K7 is computed automatically -->
           </div>
           <!-- Loading Options -->
           <div class="mb-3">
