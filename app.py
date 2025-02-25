@@ -5,6 +5,9 @@ import logging
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
+# Allow using Python's zip() function in Jinja2 templates
+app.jinja_env.globals.update(zip=zip)
+
 def get_float(value, default=0.0):
     """Safely convert a value to float."""
     try:
@@ -370,6 +373,7 @@ def calculate_beam_capacity(form_data, loads):
         concrete_grade = form_data.get("concrete_grade")
         beam_width = get_float(form_data.get("beam_width"))
         total_depth = get_float(form_data.get("beam_depth"))
+        # Get reinforcement lists from the request
         reinforcement_nums = request.form.getlist("reinforcement_num[]")
         reinforcement_diameters = request.form.getlist("reinforcement_diameter[]")
         reinforcement_covers = request.form.getlist("reinforcement_cover[]")
