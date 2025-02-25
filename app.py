@@ -5,7 +5,7 @@ import logging
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-# Allow using Python's built-in zip function in Jinja2 templates
+# Allow using Python's zip() function in Jinja2 templates
 app.jinja_env.globals.update(zip=zip)
 
 def get_float(value, default=0.0):
@@ -87,16 +87,18 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
 
     total_As = 0.0
     weighted_depth = 0.0
-    # Updated reinforcement processing: ignore rows that are empty.
-    for layer in reinforcement_layers:
-        num = layer.get("num_bars", "").strip() if isinstance(layer.get("num_bars", ""), str) else str(layer.get("num_bars", ""))
-        dia = layer.get("bar_diameter", "").strip() if isinstance(layer.get("bar_diameter", ""), str) else str(layer.get("bar_diameter", ""))
-        cover = layer.get("layer_cover", "").strip() if isinstance(layer.get("layer_cover", ""), str) else str(layer.get("layer_cover", ""))
+    # Loop over the reinforcement details provided in the form
+    for num, dia, cover in zip(
+        request.form.getlist("reinforcement_num[]"),
+        request.form.getlist("reinforcement_diameter[]"),
+        request.form.getlist("reinforcement_cover[]")
+    ):
+        # Check that the input is nonempty and that the cover is less than the total depth
         if num != "" and dia != "" and cover != "":
-            num_val = int(num)
-            dia_val = get_float(dia)
             cover_val = get_float(cover)
-            A_layer = num_val * (math.pi / 4) * (dia_val ** 2)
+            if cover_val >= total_depth:
+                raise ValueError("Invalid reinforcement cover: cover must be less than total depth.")
+            A_layer = int(num) * (math.pi / 4) * (get_float(dia) ** 2)
             total_As += A_layer
             d_layer = total_depth - cover_val
             weighted_depth += A_layer * d_layer
@@ -378,15 +380,14 @@ def calculate_beam_capacity(form_data, loads):
         concrete_grade = form_data.get("concrete_grade")
         beam_width = get_float(form_data.get("beam_width"))
         total_depth = get_float(form_data.get("beam_depth"))
-        # Get reinforcement lists from the request
+        # Get reinforcement lists from request.form
         reinforcement_nums = request.form.getlist("reinforcement_num[]")
         reinforcement_diameters = request.form.getlist("reinforcement_diameter[]")
         reinforcement_covers = request.form.getlist("reinforcement_cover[]")
         reinforcement_strength = get_float(form_data.get("reinforcement_strength"), 500.0)
         reinforcement_layers = []
         for num, dia, cover in zip(reinforcement_nums, reinforcement_diameters, reinforcement_covers):
-            # Use a robust check for non-empty entries
-            if num.strip() != "" and dia.strip() != "" and cover.strip() != "":
+            if num != "" and dia != "" and cover != "":
                 reinforcement_layers.append({
                     "num_bars": int(num),
                     "bar_diameter": get_float(dia),
