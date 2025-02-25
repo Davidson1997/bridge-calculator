@@ -75,11 +75,6 @@
     .remove-btn:hover {
       background-color: #800000;
     }
-    /* Hide sections by default */
-    #steel-options { display: none; }
-    #concrete-options { display: none; }
-    #concrete-reinf-options { display: none; }
-    #effective-length-factors { display: none; }
   </style>
   <script>
     function updateMaterialOptions() {
@@ -286,7 +281,7 @@
           <!-- New Concrete Reinforcement Options -->
           <div id="concrete-reinf-options" class="mb-3">
             <h5>Concrete Reinforcement Layers</h5>
-            <p>For each reinforcement layer (tension reinforcement), enter the number of bars, choose the bar diameter, and enter the cover from the bottom of the beam to the centroid of the reinforcement.</p>
+            <p>For each reinforcement layer (tension reinforcement), enter the number of bars, select the bar diameter, and enter the cover from the bottom of the beam to the centroid of the reinforcement.</p>
             <table class="table table-bordered" id="reinforcementTable">
               <thead>
                 <tr>
@@ -438,12 +433,8 @@
               <div class="mb-3">
                 <label for="axle_load_mode" class="form-label">Axle Load Mode:</label>
                 <select class="form-select" name="axle_load_mode" id="axle_load_mode">
-                  <option value="per beam" {% if form_data.get('axle_load_mode') == "per beam" or not form_data.get('axle_load_mode') %}selected{% endif %}>
-                    Individual Wheels (Half Axle Load)
-                  </option>
-                  <option value="full" {% if form_data.get('axle_load_mode') == "full" %}selected{% endif %}>
-                    Full Axle Load
-                  </option>
+                  <option value="per beam" {% if form_data.get('axle_load_mode') == "per beam" or not form_data.get('axle_load_mode') %}selected{% endif %}>Individual Wheels (Half Axle Load)</option>
+                  <option value="full" {% if form_data.get('axle_load_mode') == "full" %}selected{% endif %}>Full Axle Load</option>
                 </select>
               </div>
             </div>
@@ -454,7 +445,6 @@
     </div>
     
     {% if result %}
-      <!-- Summary Table -->
       <div class="card mt-4">
         <div class="card-header bg-warning text-white">
           <h3>Summary</h3>
@@ -493,7 +483,6 @@
         </div>
       </div>
       
-      <!-- Detailed Calculation Results -->
       <div class="card mt-4">
         <div class="card-header bg-success text-white">
           <h3>Calculation Results</h3>
@@ -512,7 +501,6 @@
         </div>
       </div>
       
-      <!-- Modernized Bridge Diagram (SVG) -->
       <div class="card mt-4">
         <div class="card-header bg-info text-white">
           <h4>Bridge Diagram</h4>
