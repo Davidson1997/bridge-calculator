@@ -5,7 +5,7 @@ import logging
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-# Make Python's built-in zip available in Jinja2 templates
+# Make Python's built-in zip available to Jinja2 templates
 app.jinja_env.globals.update(zip=zip)
 
 def get_float(value, default=0.0):
@@ -76,9 +76,9 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
     z_calculated = d_eff * (1 - (0.84 * (f_y / 1.15) * total_As) / ((fcu / 1.5) * beam_width * d_eff))
     z = min(z_calculated, 0.95 * d_eff)
     
-    Mus = (f_y_design * total_As * z) / 1e6  # in kNm
-    Muc = (0.225 * (fcu / 1.5) * beam_width * (d_eff ** 2)) / 1e6  # in kNm
-    moment_capacity = min(Mus, Muc) * condition_factor  # condition factor applied
+    Mus = (f_y_design * total_As * z) / 1e6  # kNm
+    Muc = (0.225 * (fcu / 1.5) * beam_width * (d_eff ** 2)) / 1e6  # kNm
+    moment_capacity = min(Mus, Muc) * condition_factor  # Apply condition factor to concrete capacity
     
     Ss = (550 / d_eff) ** 0.25
     if Ss > 1.0:
@@ -98,52 +98,55 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
 def calculate_timber_beam(form_data):
     """
     Calculates timber beam capacities using the following formulas:
-    
+
       Let:
         - width = timber beam width (mm)
         - depth = timber beam depth (mm)
         - K2 = fixed at 0.8
         - K3 = user-selected duration factor (from drop-down)
         - K7 = (300 / depth)^0.11
-        - From timber grade, retrieve:
-            bending_parallel (MPa) and shear_parallel (MPa)
-            
+
+      Timber grade properties are taken from a dictionary.
       Then:
-        b1 = (bending_parallel) * K2 * K3 * K7  
-        b2 = (shear_parallel) * K2 * K3 * K7
+        b1 = (bending parallel) * K2 * K3 * K7  
+        b2 = (shear parallel) * K2 * K3 * K7
         
-        Section modulus for a rectangular section:
-          Z = (width * depth^2) / 6   [mm^3]
-          
-        Timber bending moment capacity (kNm):
-          M_timber = (Z * b1) / 1e6
-          
-        Timber shear capacity (kN):
-          V_timber = (b2 * width * depth) / 1e3
+      Section modulus for a rectangular section:
+        Z = (width * depth^2) / 6   [mm^3]
+        
+      Timber bending moment capacity (kNm):
+        M_timber = (Z * b1) / 1e6
+        
+      Timber shear capacity (kN):
+        V_timber = (b2 * width * depth) / 1e3
     """
     timber_beam_width = get_float(form_data.get("timber_beam_width"))
     timber_beam_depth = get_float(form_data.get("timber_beam_depth"))
     timber_grade = form_data.get("timber_grade")
     timber_K3 = get_float(form_data.get("timber_K3"))
-    timber_K2 = 0.8  # fixed
+    timber_K2 = 0.8  # Fixed value as specified
     timber_K7 = (300 / timber_beam_depth) ** 0.11 if timber_beam_depth > 0 else 0
 
-    # Define timber grade properties (example values)
+    # Timber properties for various grades (values in N/mm²)
     timber_properties = {
-         "C16": {"bending_parallel": 7.0, "shear_parallel": 1.0},
-         "C24": {"bending_parallel": 9.0, "shear_parallel": 1.2}
+         "C16": {"bending_parallel": 16.0, "shear_parallel": 1.8},
+         "C24": {"bending_parallel": 24.0, "shear_parallel": 2.5},
+         "D40": {"bending_parallel": 40.0, "shear_parallel": 4.0},
+         "D50": {"bending_parallel": 50.0, "shear_parallel": 4.0},
+         "GL28c": {"bending_parallel": 28.0, "shear_parallel": 3.2},
+         "GL28h": {"bending_parallel": 28.0, "shear_parallel": 2.7},
+         "Birch": {"bending_parallel": 26.1, "shear_parallel": 2.6}
     }
-    props = timber_properties.get(timber_grade, {"bending_parallel": 7.0, "shear_parallel": 1.0})
+    props = timber_properties.get(timber_grade, {"bending_parallel": 16.0, "shear_parallel": 1.8})
     bending_parallel = props["bending_parallel"]
     shear_parallel = props["shear_parallel"]
 
     b1 = bending_parallel * timber_K2 * timber_K3 * timber_K7
     b2 = shear_parallel * timber_K2 * timber_K3 * timber_K7
 
-    # Section modulus Z = (width * depth^2) / 6
     Z = (timber_beam_width * (timber_beam_depth ** 2)) / 6.0
-    timber_moment_capacity = (Z * b1) / 1e6  # kNm
-    timber_shear_capacity = (b2 * timber_beam_width * timber_beam_depth) / 1e3  # kN
+    timber_moment_capacity = (Z * b1) / 1e6  # in kNm
+    timber_shear_capacity = (b2 * timber_beam_width * timber_beam_depth) / 1e3  # in kN
 
     timber_results = {
         "Timber Beam Width (mm)": timber_beam_width,
@@ -159,7 +162,7 @@ def calculate_timber_beam(form_data):
     }
     return timber_results
 
-# === Other functions (effective length, radius, slenderness, etc.) ===
+# === Other Functions (Effective Length, Radius, etc.) ===
 def calculate_effective_length(L, k1=1.0, k2=1.0):
     return k1 * k2 * L
 
@@ -442,7 +445,6 @@ def calculate_beam_capacity(form_data, loads):
         effective_depth = d_eff
     elif material == "Timber":
         timber_results = calculate_timber_beam(form_data)
-        # For Timber, we now calculate bending and shear capacity as per the formulas:
         moment_capacity = timber_results.get("Timber Bending Capacity (kNm)")
         shear_capacity = timber_results.get("Timber Shear Capacity (kN)")
     else:

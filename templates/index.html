@@ -339,12 +339,15 @@
                 <select class="form-select" name="timber_grade" id="timber_grade">
                   <option value="C16" {% if form_data.get('timber_grade') == "C16" %}selected{% endif %}>C16</option>
                   <option value="C24" {% if form_data.get('timber_grade') == "C24" %}selected{% endif %}>C24</option>
-                  <!-- Add more timber grades as needed -->
+                  <option value="D40" {% if form_data.get('timber_grade') == "D40" %}selected{% endif %}>D40</option>
+                  <option value="D50" {% if form_data.get('timber_grade') == "D50" %}selected{% endif %}>D50</option>
+                  <option value="GL28c" {% if form_data.get('timber_grade') == "GL28c" %}selected{% endif %}>GL28c</option>
+                  <option value="GL28h" {% if form_data.get('timber_grade') == "GL28h" %}selected{% endif %}>GL28h</option>
+                  <option value="Birch" {% if form_data.get('timber_grade') == "Birch" %}selected{% endif %}>Birch</option>
                 </select>
               </div>
               <div class="col">
                 <label for="timber_K2" class="form-label">Modification Factor K2:</label>
-                <!-- K2 is fixed as per your design -->
                 <input type="text" class="form-control" name="timber_K2" id="timber_K2" value="0.8" readonly>
               </div>
               <div class="col">
@@ -357,7 +360,6 @@
                 </select>
               </div>
             </div>
-            <!-- K7 is computed automatically -->
           </div>
           <!-- Loading Options -->
           <div class="mb-3">
