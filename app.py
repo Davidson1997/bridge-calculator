@@ -94,8 +94,8 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
         total_As += A_layer
         d_layer = total_depth - cover
         weighted_depth += A_layer * d_layer
-    # If no reinforcement provided, raise an error
     if total_As == 0:
+        # Instead of crashing the app, we raise a ValueError that will be caught later.
         raise ValueError("No reinforcement provided. Please enter valid reinforcement details.")
     d_eff = weighted_depth / total_As
 
@@ -386,11 +386,14 @@ def calculate_beam_capacity(form_data, loads):
                     "layer_cover": get_float(cover)
                 })
         if not reinforcement_layers:
-            raise ValueError("Please enter at least one reinforcement layer for concrete beams.")
-        moment_capacity_conc, shear_capacity, Mus, Muc, d_eff, total_As = calculate_concrete_capacity(
-            concrete_grade, beam_width, total_depth, reinforcement_layers,
-            reinforcement_strength=reinforcement_strength
-        )
+            return {"error": "No reinforcement provided. Please enter valid reinforcement details."}
+        try:
+            moment_capacity_conc, shear_capacity, Mus, Muc, d_eff, total_As = calculate_concrete_capacity(
+                concrete_grade, beam_width, total_depth, reinforcement_layers,
+                reinforcement_strength=reinforcement_strength
+            )
+        except Exception as e:
+            return {"error": str(e)}
         moment_capacity = moment_capacity_conc
         effective_depth = d_eff
     else:
