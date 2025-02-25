@@ -496,7 +496,6 @@ def calculate():
                 "load_material": mat.lower()
             })
     
-    # Also get the reinforcement lists separately for use in the template
     reinforcement_nums = request.form.getlist("reinforcement_num[]")
     reinforcement_diameters = request.form.getlist("reinforcement_diameter[]")
     reinforcement_covers = request.form.getlist("reinforcement_cover[]")
