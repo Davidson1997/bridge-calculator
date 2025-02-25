@@ -5,7 +5,7 @@ import logging
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-# Allow using Python's zip() function in Jinja2 templates
+# Allow using Python's built-in zip function in Jinja2 templates
 app.jinja_env.globals.update(zip=zip)
 
 def get_float(value, default=0.0):
@@ -87,14 +87,19 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
 
     total_As = 0.0
     weighted_depth = 0.0
+    # Updated reinforcement processing: ignore rows that are empty.
     for layer in reinforcement_layers:
-        num = int(layer.get("num_bars", 0))
-        dia = get_float(layer.get("bar_diameter"), 0)
-        cover = get_float(layer.get("layer_cover"), 0)
-        A_layer = num * (math.pi / 4) * (dia ** 2)
-        total_As += A_layer
-        d_layer = total_depth - cover
-        weighted_depth += A_layer * d_layer
+        num = layer.get("num_bars", "").strip() if isinstance(layer.get("num_bars", ""), str) else str(layer.get("num_bars", ""))
+        dia = layer.get("bar_diameter", "").strip() if isinstance(layer.get("bar_diameter", ""), str) else str(layer.get("bar_diameter", ""))
+        cover = layer.get("layer_cover", "").strip() if isinstance(layer.get("layer_cover", ""), str) else str(layer.get("layer_cover", ""))
+        if num != "" and dia != "" and cover != "":
+            num_val = int(num)
+            dia_val = get_float(dia)
+            cover_val = get_float(cover)
+            A_layer = num_val * (math.pi / 4) * (dia_val ** 2)
+            total_As += A_layer
+            d_layer = total_depth - cover_val
+            weighted_depth += A_layer * d_layer
     if total_As == 0:
         raise ValueError("No reinforcement provided. Please enter valid reinforcement details.")
     d_eff = weighted_depth / total_As
@@ -380,7 +385,8 @@ def calculate_beam_capacity(form_data, loads):
         reinforcement_strength = get_float(form_data.get("reinforcement_strength"), 500.0)
         reinforcement_layers = []
         for num, dia, cover in zip(reinforcement_nums, reinforcement_diameters, reinforcement_covers):
-            if num.strip() and dia.strip() and cover.strip():
+            # Use a robust check for non-empty entries
+            if num.strip() != "" and dia.strip() != "" and cover.strip() != "":
                 reinforcement_layers.append({
                     "num_bars": int(num),
                     "bar_diameter": get_float(dia),
