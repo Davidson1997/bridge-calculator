@@ -278,7 +278,6 @@
                 <input type="number" step="0.000001" class="form-control" name="beam_width" id="beam_width" value="{{ form_data.get('beam_width','') }}">
               </div>
             </div>
-            <!-- Total Depth is now the beam depth input for concrete -->
             <div class="mb-3">
               <label for="beam_depth" class="form-label">Total Depth (mm):</label>
               <input type="number" step="0.000001" class="form-control" name="beam_depth" id="beam_depth" value="{{ form_data.get('beam_depth','') }}">
@@ -287,7 +286,7 @@
           <!-- New Concrete Reinforcement Options -->
           <div id="concrete-reinf-options" class="mb-3">
             <h5>Concrete Reinforcement Layers</h5>
-            <p>Enter each reinforcement layer (tension reinforcement only). For each layer, enter the number of bars, the bar diameter, and the distance from the bottom of the beam to the centroid of the reinforcement.</p>
+            <p>For each reinforcement layer (tension reinforcement), enter the number of bars, choose the bar diameter, and enter the cover from the bottom of the beam to the centroid of the reinforcement.</p>
             <table class="table table-bordered" id="reinforcementTable">
               <thead>
                 <tr>
