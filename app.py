@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, make_response
 import math
 import logging
+from weasyprint import HTML
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -78,7 +79,7 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
     
     Mus = (f_y_design * total_As * z) / 1e6  # kNm
     Muc = (0.225 * (fcu / 1.5) * beam_width * (d_eff ** 2)) / 1e6  # kNm
-    moment_capacity = min(Mus, Muc) * condition_factor  # Apply condition factor to concrete capacity
+    moment_capacity = min(Mus, Muc) * condition_factor  # Apply condition factor
     
     Ss = (550 / d_eff) ** 0.25
     if Ss > 1.0:
@@ -124,10 +125,10 @@ def calculate_timber_beam(form_data):
     timber_beam_depth = get_float(form_data.get("timber_beam_depth"))
     timber_grade = form_data.get("timber_grade")
     timber_K3 = get_float(form_data.get("timber_K3"))
-    timber_K2 = 0.8  # Fixed value as specified
+    timber_K2 = 0.8  # Fixed value
     timber_K7 = (300 / timber_beam_depth) ** 0.11 if timber_beam_depth > 0 else 0
 
-    # Timber properties for various grades (values in N/mm²)
+    # Timber properties for various grades
     timber_properties = {
          "C16": {"bending_parallel": 16.0, "shear_parallel": 1.8},
          "C24": {"bending_parallel": 24.0, "shear_parallel": 2.5},
@@ -145,8 +146,8 @@ def calculate_timber_beam(form_data):
     b2 = shear_parallel * timber_K2 * timber_K3 * timber_K7
 
     Z = (timber_beam_width * (timber_beam_depth ** 2)) / 6.0
-    timber_moment_capacity = (Z * b1) / 1e6  # in kNm
-    timber_shear_capacity = (b2 * timber_beam_width * timber_beam_depth) / 1e3  # in kN
+    timber_moment_capacity = (Z * b1) / 1e6  # kNm
+    timber_shear_capacity = (b2 * timber_beam_width * timber_beam_depth) / 1e3  # kN
 
     timber_results = {
         "Timber Beam Width (mm)": timber_beam_width,
@@ -162,7 +163,7 @@ def calculate_timber_beam(form_data):
     }
     return timber_results
 
-# === Other Functions (Effective Length, Radius, etc.) ===
+# === Other Functions (Effective Length, Radius, Slenderness, etc.) ===
 def calculate_effective_length(L, k1=1.0, k2=1.0):
     return k1 * k2 * L
 
@@ -565,6 +566,51 @@ def calculate():
                            reinforcement_nums=reinforcement_nums,
                            reinforcement_diameters=reinforcement_diameters,
                            reinforcement_covers=reinforcement_covers)
+
+@app.route("/download-pdf", methods=["POST"])
+def download_pdf():
+    # Use the same form data as the calculate route
+    form_data = request.form.to_dict()
+    additional_loads = []
+    load_desc_list = request.form.getlist("load_desc[]")
+    load_value_list = request.form.getlist("load_value[]")
+    load_type_list = request.form.getlist("load_type[]")
+    load_distribution_list = request.form.getlist("load_distribution[]")
+    load_material_list = request.form.getlist("load_material[]")
+    
+    for desc, value, ltype, distr, mat in zip(load_desc_list, load_value_list, load_type_list, load_distribution_list, load_material_list):
+        if value.strip():
+            additional_loads.append({
+                "description": desc,
+                "value": get_float(value),
+                "type": ltype.lower(),
+                "load_distribution": distr.lower(),
+                "load_material": mat.lower()
+            })
+    
+    reinforcement_nums = request.form.getlist("reinforcement_num[]")
+    reinforcement_diameters = request.form.getlist("reinforcement_diameter[]")
+    reinforcement_covers = request.form.getlist("reinforcement_cover[]")
+    
+    form_data["load_desc[]"] = load_desc_list
+    form_data["load_value[]"] = load_value_list
+    form_data["load_type[]"] = load_type_list
+    form_data["load_distribution[]"] = load_distribution_list
+    form_data["load_material[]"] = load_material_list
+
+    result = calculate_beam_capacity(form_data, additional_loads)
+    result["Additional Loads"] = additional_loads
+
+    # Render the breakdown template that shows a detailed calculation
+    rendered = render_template("breakdown.html", result=result, form_data=form_data,
+                               reinforcement_nums=reinforcement_nums,
+                               reinforcement_diameters=reinforcement_diameters,
+                               reinforcement_covers=reinforcement_covers)
+    pdf = HTML(string=rendered).write_pdf()
+    response = make_response(pdf)
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = "attachment; filename=calculation_breakdown.pdf"
+    return response
 
 if __name__ == "__main__":
     app.run(debug=True)
