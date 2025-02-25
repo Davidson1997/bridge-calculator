@@ -49,36 +49,71 @@ def calculate_concrete_capacity(concrete_grade, beam_width, beam_depth, effectiv
                                 partial_factor_concrete=1.5, partial_factor_reinf=1.15,
                                 partial_factor_shear=1.25, partial_factor_bond=1.4):
     """
-    Calculates the design moment and shear capacities for a reinforced concrete beam.
+    Calculates the design moment and ultimate shear capacities for a reinforced concrete beam.
     
-    - f_ck: 32 MPa for "C32/40", 40 MPa for "C40/50".
-    - f_cd = f_ck / 1.5.
-    - f_yd = reinforcement_strength / 1.15.
-    - Number of bars = floor(beam_width / bar_spacing) (min 1).
-    - A_s = n_bars * (π/4 * bar_diameter²).
-    - Lever arm: a = (A_s * f_yd) / (0.85 * f_cd * beam_width).
-    - Moment capacity: M_rd = A_s * f_yd * (effective_depth - a/2) / 1e6 (kNm).
-    - Shear capacity: V_rd = (0.5 * beam_width * effective_depth * sqrt(f_cd)) / (1000 * partial_factor_shear) (kN).
+    Two moment capacities are computed:
+    
+    1. Reinforcement (steel) moment capacity, Mus:
+       Mus = (f_y_design * A_s * (effective_depth - a/2)) / 1e6  [kNm],
+       where f_y_design = reinforcement_strength / partial_factor_reinf,
+             A_s = n_bars * (π/4 * bar_diameter²) with n_bars = floor(beam_width / bar_spacing) (min 1),
+             a = (A_s * f_y_design) / (0.85 * (fcu/partial_factor_concrete) * beam_width).
+    
+    2. Concrete moment capacity, Muc:
+       Muc = [0.225 * fcu / partial_factor_concrete] * beam_width * (effective_depth)² / 1e6  [kNm],
+       where fcu = 40 MPa for "C32/40" and 50 MPa for "C40/50".
+       
+    The design moment capacity is taken as the lesser of Mus and Muc.
+    
+    Ultimate shear capacity is computed using:
+       Ss = min([550/effective_depth]^0.25, 1.0)
+       vc = (0.24 / partial_factor_shear) * ((100 * A_s / (beam_width * effective_depth))**0.333 * (fcu)**0.333)
+       Vu = Ss * vc * beam_width * effective_depth   (in N, then converted to kN)
     """
+    # Determine concrete strengths based on grade
     if concrete_grade == "C32/40":
-        f_ck = 32
+        f_ck = 30  # MPa
+        fcu = 40   # MPa
     else:
-        f_ck = 40
-    f_cd = f_ck / partial_factor_concrete
-    f_yd = reinforcement_strength / partial_factor_reinf
+        f_ck = 40  # MPa
+        fcu = 50   # MPa
+    f_cd = f_ck / partial_factor_concrete  # MPa
+    
+    # Design reinforcement yield strength
+    f_y_design = reinforcement_strength / partial_factor_reinf  # MPa
 
+    # Number of bars (at least 1)
     n_bars = math.floor(beam_width / bar_spacing)
     if n_bars < 1:
         n_bars = 1
+    # Reinforcement area (mm²)
     A_s = n_bars * (math.pi / 4) * (bar_diameter ** 2)
-    a_val = (A_s * f_yd) / (0.85 * f_cd * beam_width)
-    M_rd = (A_s * f_yd * (effective_depth - a_val / 2)) / 1e6
-    V_rd = (0.5 * beam_width * effective_depth * math.sqrt(f_cd)) / (1e3 * partial_factor_shear)
     
-    logging.debug(f"Concrete: f_ck={f_ck}, f_cd={f_cd}, f_yd={f_yd}")
+    # Lever arm parameter for reinforcement capacity:
+    a_val = (A_s * f_y_design) / (0.85 * (fcu / partial_factor_concrete) * beam_width)
+    Mus = (f_y_design * A_s * (effective_depth - a_val/2)) / 1e6  # kNm
+    
+    # Concrete moment capacity:
+    Muc = (0.225 * fcu / partial_factor_concrete) * beam_width * (effective_depth**2) / 1e6  # kNm
+    
+    moment_capacity = min(Mus, Muc)
+    
+    # Now compute ultimate shear capacity (Vu)
+    # Compute Ss = [550/effective_depth]^0.25, but not more than 1.0
+    Ss = (550 / effective_depth) ** 0.25
+    if Ss > 1.0:
+        Ss = 1.0
+    # Compute vc = (0.24 / partial_factor_shear) * ((100 * A_s / (beam_width * effective_depth))^0.333 * (fcu)^0.333)
+    vc = (0.24 / partial_factor_shear) * (((100 * A_s) / (beam_width * effective_depth)) ** 0.333 * (fcu ** 0.333))
+    Vu = Ss * vc * beam_width * effective_depth  # in N
+    Vu_kN = Vu / 1000.0  # convert to kN
+
+    logging.debug(f"Concrete: f_ck={f_ck}, fcu={fcu}, f_cd={f_cd}, f_y_design={f_y_design}")
     logging.debug(f"Reinf: n_bars={n_bars}, A_s={A_s:.2f} mm², a={a_val:.2f} mm")
-    logging.debug(f"Concrete capacities: M_rd={M_rd:.6f} kNm, V_rd={V_rd:.6f} kN")
-    return M_rd, V_rd
+    logging.debug(f"Mus = {Mus:.6f} kNm, Muc = {Muc:.6f} kNm, chosen moment_capacity = {moment_capacity:.6f} kNm")
+    logging.debug(f"Ultimate Shear: Ss = {Ss:.4f}, vc = {vc:.4f}, Vu = {Vu_kN:.6f} kN")
+    
+    return moment_capacity, Vu_kN, Mus, Muc
 
 def calculate_effective_length(L, k1=1.0, k2=1.0):
     return k1 * k2 * L
@@ -348,11 +383,13 @@ def calculate_beam_capacity(form_data, loads):
         concrete_cover = get_float(form_data.get("concrete_cover"), 40.0)
         reinforcement_grade = form_data.get("reinforcement_grade", "B500")
         reinforcement_strength = get_float(form_data.get("reinforcement_strength"), 500.0)
-        moment_capacity, shear_capacity = calculate_concrete_capacity(
+        # Use the updated ultimate moment and shear formulas:
+        moment_capacity_conc, shear_capacity, Mus, Muc = calculate_concrete_capacity(
             concrete_grade, beam_width, beam_depth, effective_depth,
             bar_diameter, bar_spacing, concrete_cover,
             reinforcement_grade, reinforcement_strength
         )
+        moment_capacity = moment_capacity_conc
         effective_length = L_actual
     else:
         moment_capacity, shear_capacity = 0, 0
@@ -401,63 +438,13 @@ def calculate_beam_capacity(form_data, loads):
         slenderness, F_param, v, r = calculate_slenderness(effective_length, web_depth, flange_thickness, flange_width, web_thickness)
         result["Slenderness (λ)"] = round(slenderness, 1)
         result["X Parameter"] = round(slenderness * math.sqrt((230 if steel_grade=="S230" else (275 if steel_grade=="S275" else 355)) / 355.0), 1)
+    if material == "Concrete":
+        result["Mus (kNm)"] = round(Mus, 1)
+        result["Muc (kNm)"] = round(Muc, 1)
     if loading_type in ["HA", "HB"]:
         result[f"{loading_type} UDL (kN/m)"] = round(default_loads.get("effective_udl", 0), 1)
     if loading_type == "HA":
         result["HA KEL (kN)"] = round(default_loads.get("kel", 0), 1)
     
-    vehicle_type = form_data.get("vehicle_type", "").strip()
-    vehicle_impact_factor = get_float(form_data.get("vehicle_impact_factor"), 1.0)
-    wheel_dispersion = form_data.get("wheel_dispersion", "none").strip()
-    axle_mode = form_data.get("axle_load_mode", "per beam").strip()
-    if vehicle_type and vehicle_type.lower() != "none":
-        vehicle_results = calculate_vehicle_loads(span_length, vehicle_type, vehicle_impact_factor, wheel_dispersion, axle_mode)
-        vehicle_results = {k: round(v, 1) for k, v in vehicle_results.items()}
-        result.update(vehicle_results)
-    
-    result["Additional Loads"] = loads
-    logging.debug("Calculation result: %s", result)
-    return result
+    vehicle_t
 
-def drange(start, stop, step):
-    r = start
-    while r <= stop:
-        yield r
-        r += step
-
-@app.route("/")
-def home():
-    return render_template("index.html", form_data={})
-
-@app.route("/calculate", methods=["POST"])
-def calculate():
-    form_data = request.form.to_dict()
-    additional_loads = []
-    load_desc_list = request.form.getlist("load_desc[]")
-    load_value_list = request.form.getlist("load_value[]")
-    load_type_list = request.form.getlist("load_type[]")
-    load_distribution_list = request.form.getlist("load_distribution[]")
-    load_material_list = request.form.getlist("load_material[]")
-    
-    for desc, value, ltype, distr, mat in zip(load_desc_list, load_value_list, load_type_list, load_distribution_list, load_material_list):
-        if value.strip():
-            additional_loads.append({
-                "description": desc,
-                "value": get_float(value),
-                "type": ltype.lower(),
-                "load_distribution": distr.lower(),
-                "load_material": mat.lower()
-            })
-    
-    form_data["load_desc[]"] = load_desc_list
-    form_data["load_value[]"] = load_value_list
-    form_data["load_type[]"] = load_type_list
-    form_data["load_distribution[]"] = load_distribution_list
-    form_data["load_material[]"] = load_material_list
-
-    result = calculate_beam_capacity(form_data, additional_loads)
-    result["Additional Loads"] = additional_loads
-    return render_template("index.html", result=result, form_data=form_data)
-
-if __name__ == "__main__":
-    app.run(debug=True)
