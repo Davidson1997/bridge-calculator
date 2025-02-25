@@ -57,24 +57,32 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
     reinforcement_layers is a list of dictionaries, each with:
        - num_bars: number of bars in that layer,
        - bar_diameter: in mm,
-       - layer_cover: distance from the bottom of the beam to the centroid of the reinforcement.
+       - layer_cover: cover from the bottom of the beam to the rebar face.
     
     For "C32/40": f_ck = 30 MPa, fcu = 40 MPa; otherwise f_ck = 40 MPa, fcu = 50 MPa.
     f_cd = f_ck / partial_factor_concrete.
     f_y_design = reinforcement_strength / partial_factor_reinf.
     
-    Total reinforcement area, As = sum(num_bars * (π/4 * (bar_diameter)^2)).
-    Effective depth, d_eff = (sum(Ai * (total_depth - layer_cover)))/sum(Ai).
+    Total reinforcement area, As, is the sum over layers.
+    The effective depth for each layer is computed as:
+         d_layer = total_depth - (cover + (bar_diameter / 2))
+    and the overall effective depth, d_eff, is the weighted average:
+         d_eff = (sum(A_layer * d_layer)) / (sum(A_layer))
     
-    Then:
-      Mus = (f_y_design * As * (d_eff - a/2)) / 1e6, where a = (As * f_y_design) / (0.85*(fcu/partial_factor_concrete)*beam_width).
-      Muc = [0.225*(fcu)/partial_factor_concrete] * beam_width * (d_eff)^2 / 1e6.
-    Design moment capacity is min(Mus, Muc).
+    Then the lever arm is computed as:
+         z_calculated = d_eff * [1 - (0.84*(f_y/1.15)*As) / ((fcu/1.5)*b*d_eff)]
+         z = min(z_calculated, 0.95*d_eff)
+    
+    Tension-controlled moment capacity:
+         Mus = ( (f_y/1.15) * As * z ) / 1e6  (in kNm)
+    Crushing-controlled moment capacity:
+         Muc = [0.225*(fcu/1.5)] * b * d_eff² / 1e6
+    The design moment capacity is the lower of Mus and Muc.
     
     Ultimate shear capacity, Vu:
-      Ss = min((550/d_eff)**0.25, 1.0)
-      vc = (0.24/partial_factor_shear) * (((100*As)/(beam_width*d_eff))**0.333 * (fcu**0.333))
-      Vu = Ss * vc * beam_width * d_eff (converted to kN)
+         Ss = min((550/d_eff)**0.25, 1.0)
+         vc = (0.24/partial_factor_shear) * (((100*As)/(b*d_eff))**0.333 * (fcu**0.333))
+         Vu = Ss * vc * b * d_eff (in N, then converted to kN)
     """
     if concrete_grade == "C32/40":
         f_ck = 30
@@ -83,7 +91,8 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
         f_ck = 40
         fcu = 50
     f_cd = f_ck / partial_factor_concrete
-    f_y_design = reinforcement_strength / partial_factor_reinf
+    f_y = reinforcement_strength  # Nominal reinforcement strength
+    f_y_design = f_y / partial_factor_reinf
 
     total_As = 0.0
     weighted_depth = 0.0
@@ -98,15 +107,18 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
                 raise ValueError("Invalid reinforcement cover: cover must be less than total depth.")
             A_layer = int(num) * (math.pi / 4) * (get_float(dia) ** 2)
             total_As += A_layer
-            d_layer = total_depth - cover_val
+            d_layer = total_depth - (cover_val + get_float(dia)/2)
             weighted_depth += A_layer * d_layer
     if total_As == 0:
         raise ValueError("No reinforcement provided. Please enter valid reinforcement details.")
     d_eff = weighted_depth / total_As
 
-    a_val = (total_As * f_y_design) / (0.85 * (fcu / partial_factor_concrete) * beam_width)
-    Mus = (f_y_design * total_As * (d_eff - a_val/2)) / 1e6
-    Muc = (0.225 * fcu / partial_factor_concrete) * beam_width * (d_eff ** 2) / 1e6
+    # Calculate lever arm using normalized expression and then cap to 0.95*d_eff
+    z_calculated = d_eff * (1 - (0.84 * (f_y / 1.15) * total_As) / ((fcu / 1.5) * beam_width * d_eff))
+    z = min(z_calculated, 0.95 * d_eff)
+    
+    Mus = (f_y_design * total_As * z) / 1e6  # in kNm
+    Muc = (0.225 * (fcu / 1.5) * beam_width * (d_eff ** 2)) / 1e6  # in kNm
     moment_capacity = min(Mus, Muc)
     
     Ss = (550 / d_eff) ** 0.25
@@ -117,7 +129,7 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
     Vu_kN = Vu / 1000.0
 
     logging.debug(f"Concrete: f_ck={f_ck}, fcu={fcu}, f_cd={f_cd}, f_y_design={f_y_design}")
-    logging.debug(f"Reinf: total_As={total_As:.2f} mm², weighted_depth={weighted_depth:.2f} mm, d_eff={d_eff:.2f} mm, a={a_val:.2f} mm")
+    logging.debug(f"Reinf: total_As={total_As:.2f} mm², weighted_depth={weighted_depth:.2f} mm, d_eff={d_eff:.2f} mm, z_calculated={z_calculated:.2f} mm, z={z:.2f} mm")
     logging.debug(f"Mus = {Mus:.6f} kNm, Muc = {Muc:.6f} kNm, chosen moment_capacity = {moment_capacity:.6f} kNm")
     logging.debug(f"Ultimate Shear: Ss = {Ss:.4f}, vc = {vc:.4f}, Vu = {Vu_kN:.6f} kN")
     
@@ -377,9 +389,9 @@ def calculate_beam_capacity(form_data, loads):
     elif material == "Concrete":
         concrete_grade = form_data.get("concrete_grade")
         beam_width = get_float(form_data.get("beam_width"))
-        total_depth = get_float(form_data.get("concrete_beam_depth"), "")
+        total_depth = get_float(form_data.get("concrete_beam_depth"))
         if total_depth == 0:
-            total_depth = get_float(form_data.get("beam_depth"), "")
+            total_depth = get_float(form_data.get("beam_depth"))
         reinforcement_nums = request.form.getlist("reinforcement_num[]")
         reinforcement_diameters = request.form.getlist("reinforcement_diameter[]")
         reinforcement_covers = request.form.getlist("reinforcement_cover[]")
