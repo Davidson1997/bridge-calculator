@@ -333,6 +333,10 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
     additional_dead = 0.0
     additional_live = 0.0
     additional_shear = 0.0
+    applied_load_breakdown = "\nApplied Load Calculation Process:\n----------------------------------\n"
+    applied_load_breakdown += f"Base UDL = {base_udl:.3f} kN/m, Loaded Width = {loaded_width}, Access Factor = {access_factor}\n"
+    applied_load_breakdown += f"Effective UDL = {default_loads.get('effective_udl'):.3f} kN/m, HA KEL = {default_loads.get('kel'):.3f} kN\n"
+    applied_load_breakdown += f"Base Moment = {base_moment:.3f} kNm, Base Shear = {base_shear:.3f} kN\n"
     for load in additional_loads:
         try:
             load_value = load.get("value", 0)
@@ -353,14 +357,17 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
             if load_type_str == "dead":
                 sf = get_additional_load_sf(load_material)
                 additional_dead += add_moment * sf
+                applied_load_breakdown += f"Additional Dead Load ({load.description}): {load_value} with SF {sf} => Moment: {add_moment*sf:.3f} kNm, Shear: {add_shear:.3f} kN\n"
             else:
                 additional_live += add_moment
+                applied_load_breakdown += f"Additional Live Load ({load.description}): {load_value} => Moment: {add_moment:.3f} kNm, Shear: {add_shear:.3f} kN\n"
             additional_shear += add_shear
         except Exception as e:
             logging.error(f"Error processing additional load: {load} - {e}")
     total_applied_moment = base_moment + additional_dead + additional_live
     total_applied_shear = (default_loads.get("effective_udl", 0) * span_length) / 2 + (kel if loading_type=="HA" else 0) + additional_shear
-    return total_applied_moment, total_applied_shear, default_loads, additional_dead, additional_live
+    applied_load_breakdown += f"Total Applied Moment = {total_applied_moment:.3f} kNm, Total Applied Shear = {total_applied_shear:.3f} kN\n"
+    return total_applied_moment, total_applied_shear, default_loads, additional_dead, additional_live, applied_load_breakdown
 
 def calculate_beam_capacity(form_data, loads):
     material = form_data.get("material")
@@ -390,22 +397,20 @@ def calculate_beam_capacity(form_data, loads):
         except Exception as e:
             logging.error("Error in BD37 capacity calculation: %s", e)
             moment_capacity = Mpe
-        # Build detailed calculation process for steel
-        calculation_process += "Steel Beam Calculation Process:\n"
-        calculation_process += "----------------------------------\n"
+        calculation_process += "Steel Beam Calculation Process:\n----------------------------------\n"
         calculation_process += f"Steel Grade: {steel_grade}\n"
         calculation_process += f"Flange: Width = {flange_width} mm, Thickness = {flange_thickness} mm\n"
         calculation_process += f"Web: Thickness = {web_thickness} mm, Depth = {web_depth} mm\n"
         overall_depth = web_depth + 2 * flange_thickness
         calculation_process += f"Overall Depth = {web_depth} + 2 x {flange_thickness} = {overall_depth} mm\n"
-        Z_plastic = (flange_width * flange_thickness * (overall_depth - flange_thickness) +
+        Z_plastic = (flange_width * flange_thickness * (overall_depth - flange_thickness) + 
                      (web_thickness * (overall_depth - 2 * flange_thickness)**2) / 4) / 1e6
         calculation_process += f"Plastic Section Modulus, Z_plastic = {Z_plastic:.6f} m³\n"
         fy = 230.0 if steel_grade.strip() == "S230" else (275.0 if steel_grade.strip() == "S275" else 355.0)
         calculation_process += f"Yield Strength, fy = {fy} N/mm²\n"
         calculation_process += f"Mpe = (fy x Z_plastic x condition factor) / (1.05 x 1.1) = {Mpe:.3f} kNm\n"
         calculation_process += f"Slenderness = {slenderness:.3f}, X = {X:.3f}\n"
-        calculation_process += f"Lookup Factor from table = {get_lookup_factor(X):.3f}\n"
+        calculation_process += f"Lookup Factor = {get_lookup_factor(X):.3f}\n"
         calculation_process += f"Adjusted Moment Capacity, MR = Lookup Factor x Mpe = {moment_capacity:.3f} kNm\n"
         calculation_process += "----------------------------------\n"
     elif material == "Concrete":
@@ -437,8 +442,7 @@ def calculate_beam_capacity(form_data, loads):
             return {"error": str(e)}
         moment_capacity = moment_capacity_conc
         effective_depth = d_eff
-        calculation_process += "Concrete Beam Calculation Process:\n"
-        calculation_process += "----------------------------------\n"
+        calculation_process += "Concrete Beam Calculation Process:\n----------------------------------\n"
         calculation_process += f"Concrete Grade: {concrete_grade}\n"
         calculation_process += f"Beam Width = {beam_width} mm, Total Depth = {total_depth} mm\n"
         calculation_process += f"Effective Depth (d_eff) = {effective_depth:.3f} mm\n"
@@ -451,22 +455,22 @@ def calculate_beam_capacity(form_data, loads):
         timber_results = calculate_timber_beam(form_data)
         moment_capacity = timber_results.get("Timber Bending Capacity (kNm)")
         shear_capacity = timber_results.get("Timber Shear Capacity (kN)")
-        calculation_process += "Timber Beam Calculation Process:\n"
-        calculation_process += "----------------------------------\n"
+        calculation_process += "Timber Beam Calculation Process:\n----------------------------------\n"
         calculation_process += f"Beam Width = {form_data.get('timber_beam_width')} mm, Beam Depth = {form_data.get('timber_beam_depth')} mm\n"
         calculation_process += f"Timber Grade: {form_data.get('timber_grade')}\n"
         calculation_process += f"Calculated Bending Capacity = {moment_capacity} kNm\n"
         calculation_process += "----------------------------------\n"
     else:
         moment_capacity, shear_capacity = 0, 0
-        calculation_process = "No calculation process available."
+        calculation_process = "No calculation process available.\n"
     
     reduction_factor = 1.0
     if effective_length < span_length:
         reduction_factor = effective_length / span_length
         moment_capacity *= reduction_factor
 
-    applied_moment, applied_shear, default_loads, additional_dead, additional_live = calculate_applied_loads(span_length, loading_type, loads, loaded_width, access_factor)
+    # Calculate applied loads and capture the process details.
+    applied_moment, applied_shear, default_loads, additional_dead, additional_live, load_breakdown = calculate_applied_loads(span_length, loading_type, loads, loaded_width, access_factor)
     
     self_weight_moment = 0.0
     if material == "Steel":
@@ -480,6 +484,9 @@ def calculate_beam_capacity(form_data, loads):
 
     applied_live = applied_moment - additional_dead
     applied_dead = additional_dead + self_weight_moment
+
+    # Append applied load breakdown to calculation process
+    calculation_process += load_breakdown
 
     result = {
         "Span Length (m)": round(span_length, 1),
