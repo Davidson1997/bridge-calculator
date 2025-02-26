@@ -357,10 +357,10 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
             if load_type_str == "dead":
                 sf = get_additional_load_sf(load_material)
                 additional_dead += add_moment * sf
-                applied_load_breakdown += f"Additional Dead Load ({load.description}): {load_value} with SF {sf} => Moment: {add_moment*sf:.3f} kNm, Shear: {add_shear:.3f} kN\n"
+                applied_load_breakdown += f"Additional Dead Load ({load['description']}): {load_value} with SF {sf} => Moment: {add_moment*sf:.3f} kNm, Shear: {add_shear:.3f} kN\n"
             else:
                 additional_live += add_moment
-                applied_load_breakdown += f"Additional Live Load ({load.description}): {load_value} => Moment: {add_moment:.3f} kNm, Shear: {add_shear:.3f} kN\n"
+                applied_load_breakdown += f"Additional Live Load ({load['description']}): {load_value} => Moment: {add_moment:.3f} kNm, Shear: {add_shear:.3f} kN\n"
             additional_shear += add_shear
         except Exception as e:
             logging.error(f"Error processing additional load: {load} - {e}")
@@ -397,6 +397,7 @@ def calculate_beam_capacity(form_data, loads):
         except Exception as e:
             logging.error("Error in BD37 capacity calculation: %s", e)
             moment_capacity = Mpe
+        # Build steel-specific breakdown
         calculation_process += "Steel Beam Calculation Process:\n----------------------------------\n"
         calculation_process += f"Steel Grade: {steel_grade}\n"
         calculation_process += f"Flange: Width = {flange_width} mm, Thickness = {flange_thickness} mm\n"
@@ -456,8 +457,8 @@ def calculate_beam_capacity(form_data, loads):
         moment_capacity = timber_results.get("Timber Bending Capacity (kNm)")
         shear_capacity = timber_results.get("Timber Shear Capacity (kN)")
         calculation_process += "Timber Beam Calculation Process:\n----------------------------------\n"
-        calculation_process += f"Beam Width = {form_data.get('timber_beam_width')} mm, Beam Depth = {form_data.get('timber_beam_depth')} mm\n"
         calculation_process += f"Timber Grade: {form_data.get('timber_grade')}\n"
+        calculation_process += f"Beam Width = {form_data.get('timber_beam_width')} mm, Beam Depth = {form_data.get('timber_beam_depth')} mm\n"
         calculation_process += f"Calculated Bending Capacity = {moment_capacity} kNm\n"
         calculation_process += "----------------------------------\n"
     else:
@@ -469,7 +470,6 @@ def calculate_beam_capacity(form_data, loads):
         reduction_factor = effective_length / span_length
         moment_capacity *= reduction_factor
 
-    # Calculate applied loads and capture the process details.
     applied_moment, applied_shear, default_loads, additional_dead, additional_live, load_breakdown = calculate_applied_loads(span_length, loading_type, loads, loaded_width, access_factor)
     
     self_weight_moment = 0.0
@@ -630,3 +630,4 @@ def download_pdf():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
