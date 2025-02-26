@@ -4,18 +4,17 @@
   <meta charset="UTF-8">
   <title>Calculation Breakdown</title>
   <style>
-    /* Define page margins for printing/PDF */
+    /* Page margins for printing/PDF */
     @page {
       margin: 25mm;
     }
     body {
       font-family: 'Roboto', sans-serif;
-      background-color: #e3f2fd;  /* Similar to your website background color */
+      background-color: #e3f2fd; /* Match website background */
       margin: 0;
-      padding: 0;
+      padding: 20px;
       color: #333;
       font-size: 13px;
-      /* Ensure content doesn't overflow page borders */
       overflow-wrap: break-word;
     }
     .container {
@@ -39,6 +38,27 @@
       border-bottom: 2px solid #003366;
       padding-bottom: 4px;
     }
+    /* Use CSS grid for input parameters to create a two-column layout with flexible widths */
+    .grid-table {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    .grid-item {
+      padding: 8px 10px;
+      background: #f9f9f9;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .grid-label {
+      font-weight: 600;
+      background-color: #003366;
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 4px;
+    }
+    /* For standard result tables */
     table {
       width: 100%;
       border-collapse: collapse;
@@ -66,8 +86,9 @@
       white-space: pre-wrap;
       font-size: 12px;
       line-height: 1.4;
+      border-radius: 4px;
     }
-    /* Ensure a page break after major sections if content overflows */
+    /* Page break for overspill */
     .page-break {
       page-break-after: always;
     }
@@ -77,33 +98,43 @@
   <div class="container">
     <h1>Calculation Breakdown</h1>
     
+    <!-- Input Parameters using a CSS Grid Layout -->
     <h2>Input Parameters</h2>
-    <table>
+    <div class="grid-table">
       {% for key, value in form_data.items() %}
-        <tr>
-          <th>{{ key }}</th>
-          <td>{{ value }}</td>
-        </tr>
+        <div class="grid-label">{{ key }}</div>
+        <div class="grid-item">{{ value }}</div>
       {% endfor %}
-    </table>
+    </div>
     
+    <!-- Results Table -->
     <div class="section-title">Results</div>
     <table>
-      {% for key, value in result.items() %}
-        {% if key != "Additional Loads" and key != "Calculation Process" %}
+      <thead>
         <tr>
-          <th>{{ key }}</th>
-          <td>{{ value }}</td>
+          <th>Parameter</th>
+          <th>Value</th>
         </tr>
-        {% endif %}
-      {% endfor %}
+      </thead>
+      <tbody>
+        {% for key, value in result.items() %}
+          {% if key != "Additional Loads" and key != "Calculation Process" %}
+          <tr>
+            <td>{{ key }}</td>
+            <td>{{ value }}</td>
+          </tr>
+          {% endif %}
+        {% endfor %}
+      </tbody>
     </table>
     
+    <!-- Detailed Calculation Process -->
     <div class="section-title">Detailed Calculation Process</div>
     <div class="process-box">
       {{ result["Calculation Process"] | safe }}
     </div>
     
+    <!-- Additional Loads Table -->
     <div class="section-title">Additional Loads</div>
     <table>
       <thead>
@@ -128,10 +159,9 @@
       </tbody>
     </table>
     
-    <!-- Optional page break if content overflows -->
+    <!-- Optional page break -->
     <div class="page-break"></div>
     
   </div>
 </body>
 </html>
-
