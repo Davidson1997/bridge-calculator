@@ -592,8 +592,8 @@ def calculate_beam_capacity(form_data, loads):
         result["Total Reinforcement Area (mm²)"] = round(total_As, 1)
     if material == "Timber":
         result.update(timber_results)
-    if loading_type in ["HA", "HB"]]:
-        result[f"{loading_type} UDL (kN/m)"] = round(default_loads.get("effective_udl", 0), 1)
+   if loading_type in ["HA", "HB"]:
+    result[f"{loading_type} UDL (kN/m)"] = round(default_loads.get("effective_udl", 0), 1)
     if loading_type == "HA":
         result["HA KEL (kN)"] = round(default_loads.get("kel", 0), 1)
     
