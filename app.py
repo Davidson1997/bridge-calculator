@@ -419,62 +419,62 @@ def calculate_beam_capacity(form_data, loads):
     access_factor = 1.5 if access_str.lower() == "public" else 1.3
 
     calculation_process = ""
-  if material == "Steel":
-    steel_grade = form_data.get("steel_grade")
-    flange_width = get_float(form_data.get("flange_width"))
-    flange_thickness = get_float(form_data.get("flange_thickness"))
-    web_thickness = get_float(form_data.get("web_thickness"))
-    web_depth = get_float(form_data.get("beam_depth"))
+    if material == "Steel":
+        steel_grade = form_data.get("steel_grade")
+        flange_width = get_float(form_data.get("flange_width"))
+        flange_thickness = get_float(form_data.get("flange_thickness"))
+        web_thickness = get_float(form_data.get("web_thickness"))
+        web_depth = get_float(form_data.get("beam_depth"))
 
-    # Base section capacity (returns Mpe, shear)
-    Mpe, shear_capacity = calculate_steel_capacity(
-        steel_grade, flange_width, flange_thickness, web_thickness, web_depth, condition_factor
-    )
-
-    # Compute Z_plastic locally (m^3) for reporting AND for k4
-    overall_depth = web_depth + 2 * flange_thickness
-    Z_plastic = (flange_width * flange_thickness * (overall_depth - flange_thickness) +
-                 (web_thickness * (overall_depth - 2 * flange_thickness)**2) / 4) / 1e6
-
-    # --- k4 (minor-axis symmetry) BEFORE calling BD37 ---
-    A_mm2, d_mm, h_mm, Ix_mm4, Iy_mm4 = section_props_for_k4(
-        flange_width, flange_thickness, web_thickness, web_depth
-    )
-    k4 = k4_minor_axis(Z_plastic, A_mm2, h_mm, Ix_mm4, Iy_mm4)
-
-    # BD37 capacity using k4
-    try:
-        MR, slenderness, X = calculate_bd37_moment_capacity(
-            Mpe, effective_length, steel_grade,
-            flange_width, flange_thickness, web_thickness, web_depth,
-            k4=k4
+        # Base section capacity (returns Mpe, shear)
+        Mpe, shear_capacity = calculate_steel_capacity(
+            steel_grade, flange_width, flange_thickness, web_thickness, web_depth, condition_factor
         )
-        moment_capacity = MR
-    except Exception as e:
-        logging.error("Error in BD37 capacity calculation: %s", e)
-        # Fallback: at least compute slenderness/X to keep outputs consistent
-        slenderness, F_param, v_tmp, r_tmp = calculate_slenderness(
-            effective_length, web_depth, flange_thickness, flange_width, web_thickness, k4=k4
-        )
-        fy_fallback = 230.0 if steel_grade.strip() == "S230" else (275.0 if steel_grade.strip() == "S275" else 355.0)
-        X = slenderness * math.sqrt(fy_fallback / 355.0) if Mpe != 0 else 0.0
-        moment_capacity = Mpe  # fallback to plastic
 
-    # ---- Build steel-specific breakdown ----
-    calculation_process += "Steel Beam Calculation Process:\n----------------------------------\n"
-    calculation_process += f"Steel Grade: {steel_grade}\n"
-    calculation_process += f"Flange: Width = {flange_width} mm, Thickness = {flange_thickness} mm\n"
-    calculation_process += f"Web: Thickness = {web_thickness} mm, Depth = {web_depth} mm\n"
-    calculation_process += f"Overall Depth = {web_depth} + 2 x {flange_thickness} = {overall_depth} mm\n"
-    calculation_process += f"Plastic Section Modulus, Z_plastic = {Z_plastic:.6f} m³\n"
-    fy = 230.0 if steel_grade.strip() == "S230" else (275.0 if steel_grade.strip() == "S275" else 355.0)
-    calculation_process += f"Yield Strength, fy = {fy} N/mm²\n"
-    calculation_process += f"k4 (minor-axis symmetry) = {k4:.3f}\n"
-    calculation_process += f"Mpe = (fy x Z_plastic x condition factor)  = {Mpe:.3f} kNm\n"
-    calculation_process += f"Slenderness = {slenderness:.3f}, X = {X:.3f}\n"
-    calculation_process += f"Lookup Factor = {get_lookup_factor(X):.3f}\n"
-    calculation_process += f"Adjusted Moment Capacity, MR = Lookup Factor x Mpe / (1.05 x 1.1) = {moment_capacity:.3f} kNm\n"
-    calculation_process += "----------------------------------\n"
+        # Compute Z_plastic locally (m^3) for reporting AND for k4
+        overall_depth = web_depth + 2 * flange_thickness
+        Z_plastic = (flange_width * flange_thickness * (overall_depth - flange_thickness) +
+                     (web_thickness * (overall_depth - 2 * flange_thickness)**2) / 4) / 1e6
+
+        # --- k4 (minor-axis symmetry) BEFORE calling BD37 ---
+        A_mm2, d_mm, h_mm, Ix_mm4, Iy_mm4 = section_props_for_k4(
+            flange_width, flange_thickness, web_thickness, web_depth
+        )
+        k4 = k4_minor_axis(Z_plastic, A_mm2, h_mm, Ix_mm4, Iy_mm4)
+
+        # BD37 capacity using k4
+        try:
+            MR, slenderness, X = calculate_bd37_moment_capacity(
+                Mpe, effective_length, steel_grade,
+                flange_width, flange_thickness, web_thickness, web_depth,
+                k4=k4
+            )
+            moment_capacity = MR
+        except Exception as e:
+            logging.error("Error in BD37 capacity calculation: %s", e)
+            # Fallback: at least compute slenderness/X to keep outputs consistent
+            slenderness, F_param, v_tmp, r_tmp = calculate_slenderness(
+                effective_length, web_depth, flange_thickness, flange_width, web_thickness, k4=k4
+            )
+            fy_fallback = 230.0 if steel_grade.strip() == "S230" else (275.0 if steel_grade.strip() == "S275" else 355.0)
+            X = slenderness * math.sqrt(fy_fallback / 355.0) if Mpe != 0 else 0.0
+            moment_capacity = Mpe  # fallback to plastic
+
+        # ---- Build steel-specific breakdown ----
+        calculation_process += "Steel Beam Calculation Process:\n----------------------------------\n"
+        calculation_process += f"Steel Grade: {steel_grade}\n"
+        calculation_process += f"Flange: Width = {flange_width} mm, Thickness = {flange_thickness} mm\n"
+        calculation_process += f"Web: Thickness = {web_thickness} mm, Depth = {web_depth} mm\n"
+        calculation_process += f"Overall Depth = {web_depth} + 2 x {flange_thickness} = {overall_depth} mm\n"
+        calculation_process += f"Plastic Section Modulus, Z_plastic = {Z_plastic:.6f} m³\n"
+        fy = 230.0 if steel_grade.strip() == "S230" else (275.0 if steel_grade.strip() == "S275" else 355.0)
+        calculation_process += f"Yield Strength, fy = {fy} N/mm²\n"
+        calculation_process += f"k4 (minor-axis symmetry) = {k4:.3f}\n"
+        calculation_process += f"Mpe = (fy x Z_plastic x condition factor)  = {Mpe:.3f} kNm\n"
+        calculation_process += f"Slenderness = {slenderness:.3f}, X = {X:.3f}\n"
+        calculation_process += f"Lookup Factor = {get_lookup_factor(X):.3f}\n"
+        calculation_process += f"Adjusted Moment Capacity, MR = Lookup Factor x Mpe / (1.05 x 1.1) = {moment_capacity:.3f} kNm\n"
+        calculation_process += "----------------------------------\n"
 
     elif material == "Concrete":
         concrete_grade = form_data.get("concrete_grade")
@@ -532,7 +532,9 @@ def calculate_beam_capacity(form_data, loads):
         reduction_factor = effective_length / span_length
         moment_capacity *= reduction_factor
 
-    applied_moment, applied_shear, default_loads, additional_dead, additional_live, load_breakdown = calculate_applied_loads(span_length, loading_type, loads, loaded_width, access_factor)
+    applied_moment, applied_shear, default_loads, additional_dead, additional_live, load_breakdown = calculate_applied_loads(
+        span_length, loading_type, loads, loaded_width, access_factor
+    )
     
     self_weight_moment = 0.0
     if material == "Steel":
@@ -547,7 +549,6 @@ def calculate_beam_capacity(form_data, loads):
     applied_live = applied_moment - additional_dead
     applied_dead = additional_dead + self_weight_moment
 
-    # Append applied load breakdown to calculation process
     calculation_process += load_breakdown
 
     result = {
@@ -571,17 +572,18 @@ def calculate_beam_capacity(form_data, loads):
         "Access Type": access_str,
         "Calculation Process": calculation_process
     }
-   if material == "Steel":
-    # recompute to display consistent with BD37 (use k4 here)
-    slenderness_disp, F_param_disp, v_disp, r_disp = calculate_slenderness(
-        effective_length, web_depth, flange_thickness, flange_width, web_thickness, k4=k4
-    )
-    result["k4 (minor-axis)"] = round(k4, 3)
-    result["Slenderness (λ)"] = round(slenderness_disp, 1)
-    result["X Parameter"] = round(
-        slenderness_disp * math.sqrt((230 if steel_grade=="S230" else (275 if steel_grade=="S275" else 355)) / 355.0),
-        1)
 
+    if material == "Steel":
+        # recompute to display consistent with BD37 (use k4 here)
+        slenderness_disp, F_param_disp, v_disp, r_disp = calculate_slenderness(
+            effective_length, web_depth, flange_thickness, flange_width, web_thickness, k4=k4
+        )
+        result["k4 (minor-axis)"] = round(k4, 3)
+        result["Slenderness (λ)"] = round(slenderness_disp, 1)
+        result["X Parameter"] = round(
+            slenderness_disp * math.sqrt((230 if steel_grade=="S230" else (275 if steel_grade=="S275" else 355)) / 355.0),
+            1
+        )
 
     if material == "Concrete":
         result["Mus (kNm)"] = round(Mus, 1)
@@ -590,7 +592,7 @@ def calculate_beam_capacity(form_data, loads):
         result["Total Reinforcement Area (mm²)"] = round(total_As, 1)
     if material == "Timber":
         result.update(timber_results)
-    if loading_type in ["HA", "HB"]:
+    if loading_type in ["HA", "HB"]]:
         result[f"{loading_type} UDL (kN/m)"] = round(default_loads.get("effective_udl", 0), 1)
     if loading_type == "HA":
         result["HA KEL (kN)"] = round(default_loads.get("kel", 0), 1)
