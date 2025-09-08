@@ -166,10 +166,7 @@ def section_props_for_k4(B_f, t_f, t_w, web_depth_mm):
 
     return A, d, h, Ix, Iy
 
-def k4_minor_axis(Z_plastic_m3, A_mm2, h_mm, Ix_mm4, Iy_mm4):
-    """
-    Z_plastic_m3 is in m³. Convert to mm³ for the k4 formula.
-    """
+def k4_minor_axis(Z_plastic_mm3, A_mm2, h_mm, Ix_mm4, Iy_mm4):
     if A_mm2 <= 0 or h_mm <= 0 or Ix_mm4 <= 0:
         return 1.0
 
@@ -177,10 +174,7 @@ def k4_minor_axis(Z_plastic_m3, A_mm2, h_mm, Ix_mm4, Iy_mm4):
     if ratio <= 0:
         return 1.0
 
-    # Convert Z_plastic from m³ to mm³
-    Z_mm3 = Z_plastic_m3 * 1e9
-
-    val = (4.0 * (Z_mm3 ** 2) / (A_mm2 ** 2 * h_mm ** 2)) * ratio
+    val = (4.0 * (Z_plastic_mm3 ** 2) / (A_mm2 ** 2 * h_mm ** 2)) * ratio
     val = max(val, 0.0)
 
     return val ** 0.25
@@ -442,7 +436,7 @@ def calculate_beam_capacity(form_data, loads):
         Z_plastic = (
             flange_width * flange_thickness * (overall_depth - flange_thickness)
             + (web_thickness * (overall_depth - 2 * flange_thickness) ** 2) / 4
-        ) / 1e6
+        ) 
 
         # k4 (minor-axis symmetric I/L-section)
         A_mm2, d_mm, h_mm, Ix_mm4, Iy_mm4 = section_props_for_k4(
