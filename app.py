@@ -169,19 +169,19 @@ def section_props_for_k4(B_f, t_f, t_w, web_depth_mm):
 
 def k4_minor_axis(Z_plastic_m3, A_mm2, h_mm, Ix_mm4, Iy_mm4):
     """
-    k4 = [ (4 * Zpe^2 / (A^2 * h^2)) * (1 - Iy/Ix) ]^(1/4)
-    Z_plastic_m3 is in m³ (as in your code); others in mm-units.
+    NOTE: In this codebase, Z_plastic is stored as mm³ × 1e-6 (not true m³),
+    so multiply by 1e6 to recover mm³ for the k4 formula.
     """
     if A_mm2 <= 0 or h_mm <= 0 or Ix_mm4 <= 0:
         return 1.0
     ratio = 1.0 - (Iy_mm4 / Ix_mm4)
     if ratio <= 0:
         return 1.0
-    Z_mm3 = Z_plastic_m3 * 1e9  # m³ -> mm³
+
+    Z_mm3 = Z_plastic_m3 * 1e6  # convert back to mm³ (correct for how Z is stored)
     val = (4.0 * (Z_mm3**2) / (A_mm2**2 * h_mm**2)) * ratio
     val = max(val, 0.0)
     return max(1.0, val ** 0.25)
-
 
 lookup_table = {
     0: 1.000000,
