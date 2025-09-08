@@ -181,7 +181,7 @@ def k4_minor_axis(Z_plastic_m3, A_mm2, h_mm, Ix_mm4, Iy_mm4):
     Z_mm3 = Z_plastic_m3 * 1e6  # convert back to mm³ (correct for how Z is stored)
     val = (4.0 * (Z_mm3**2) / (A_mm2**2 * h_mm**2)) * ratio
     val = max(val, 0.0)
-    return max(1.0, val ** 0.25)
+    return max ** 0.25
 
 lookup_table = {
     0: 1.000000,
@@ -447,6 +447,9 @@ def calculate_beam_capacity(form_data, loads):
             flange_width, flange_thickness, web_thickness, web_depth
         )
         k4 = k4_minor_axis(Z_plastic, A_mm2, h_mm, Ix_mm4, Iy_mm4)
+	logging.debug(f"Section props for k4: A={A_mm2:.1f} mm², d={d_mm:.1f} mm, h={h_mm:.1f} mm, Ix={Ix_mm4:.1f} mm⁴, Iy={Iy_mm4:.1f} mm⁴")
+	logging.debug(f"Z_plastic input to k4 (m³)={Z_plastic:.6e}, converted to mm³={Z_plastic*1e6:.1f}")
+	logging.debug(f"Calculated k4 = {k4:.3f}")
 
         # BD37 capacity using k4
         try:
