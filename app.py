@@ -86,7 +86,6 @@ def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinfor
     vc = (0.24 / partial_factor_shear) * (((100 * total_As) / (beam_width * d_eff)) ** 0.333 * (fcu ** 0.333))
     Vu = Ss * vc * beam_width * d_eff
     Vu_kN = Vu / 1000.0
-
     logging.debug(f"Concrete: f_ck={f_ck}, fcu={fcu}, f_cd={f_cd:.2f}, f_y_design={f_y_design:.2f}")
     logging.debug(f"Reinf: total_As={total_As:.2f} mm², weighted_depth={weighted_depth:.2f} mm, d_eff={d_eff:.2f} mm, z_calculated={z_calculated:.2f} mm, z={z:.2f} mm")
     logging.debug(f"Mus = {Mus:.6f} kNm, Muc = {Muc:.6f} kNm, chosen moment_capacity = {moment_capacity:.6f} kNm")
@@ -169,19 +168,22 @@ def section_props_for_k4(B_f, t_f, t_w, web_depth_mm):
 
 def k4_minor_axis(Z_plastic_m3, A_mm2, h_mm, Ix_mm4, Iy_mm4):
     """
-    NOTE: In this codebase, Z_plastic is stored as mm³ × 1e-6 (not true m³),
-    so multiply by 1e6 to recover mm³ for the k4 formula.
+    Z_plastic_m3 is in m³. Convert to mm³ for the k4 formula.
     """
     if A_mm2 <= 0 or h_mm <= 0 or Ix_mm4 <= 0:
         return 1.0
+
     ratio = 1.0 - (Iy_mm4 / Ix_mm4)
     if ratio <= 0:
         return 1.0
 
-    Z_mm3 = Z_plastic_m3 * 1e6  # convert back to mm³ (correct for how Z is stored)
-    val = (4.0 * (Z_mm3**2) / (A_mm2**2 * h_mm**2)) * ratio
+    # Convert Z_plastic from m³ to mm³
+    Z_mm3 = Z_plastic_m3 * 1e9
+
+    val = (4.0 * (Z_mm3 ** 2) / (A_mm2 ** 2 * h_mm ** 2)) * ratio
     val = max(val, 0.0)
-    return max ** 0.25
+
+    return val ** 0.25
 
 lookup_table = {
     0: 1.000000,
