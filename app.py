@@ -263,7 +263,7 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
     slenderness, F_param, v_value, r = calculate_slenderness(effective_length, web_depth, flange_thickness, flange_width, web_thickness, k4=k4)
     X = slenderness * math.sqrt(fy / 355.0) if Mpe != 0 else 0.0
     lookup_factor = get_lookup_factor(X)
-    MR = (lookup_factor * Mpe * condition factor) / (1.05 * 1.1)
+    MR = (lookup_factor * Mpe * condition_factor) / (1.05 * 1.1)
     logging.debug(f"Steel: fy={fy}, slenderness={slenderness}, X={X}, k4={k4}, Lookup Factor={lookup_factor}, MR={MR}")
     return MR, slenderness, X
 
