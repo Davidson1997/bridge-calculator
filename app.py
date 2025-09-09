@@ -35,10 +35,10 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     overall_depth = web_depth + 2 * flange_thickness  # overall depth in mm
     Z_plastic = (flange_width * flange_thickness * (overall_depth - flange_thickness) +
                  (web_thickness * (overall_depth - 2 * flange_thickness)**2) / 4) # in mm³
-    Mpe = (fy * (Z_plastic/1e6))  # kNm
+    MR = (fy * (Z_plastic/1e6) * lookup_factor)  # kNm
     shear_capacity = (fy * web_thickness * overall_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)  # kN
-    logging.debug(f"Steel: overall_depth={overall_depth} mm, Z_plastic={Z_plastic:.6f} m³, Mpe={Mpe:.6f} kNm, shear={shear_capacity:.6f} kN")
-    return Mpe, shear_capacity
+    logging.debug(f"Steel: overall_depth={overall_depth} mm, Z_plastic={Z_plastic:.6f} m³, MR={MR:.6f} kNm, shear={shear_capacity:.6f} kN")
+    return MR, shear_capacity
 
 # ---------------- Concrete Calculations ----------------
 def calculate_concrete_capacity(concrete_grade, beam_width, total_depth, reinforcement_layers,
@@ -258,14 +258,14 @@ def calculate_slenderness(effective_length, web_depth, flange_thickness, B_f, t_
     logging.debug(f"Effective Length={effective_length}, r={r}, F={F_param}, v={v}, k4={k4}, slenderness={slenderness}")
     return slenderness, F_param, v, r
 
-def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_width, flange_thickness, web_thickness, web_depth, k4=1.0):
+def calculate_bd37_moment_capacity(MR, effective_length, steel_grade, flange_width, flange_thickness, web_thickness, web_depth, k4=1.0):
     fy = 230.0 if steel_grade.strip() == "S230" else (275.0 if steel_grade.strip() == "S275" else 355.0)
     slenderness, F_param, v_value, r = calculate_slenderness(effective_length, web_depth, flange_thickness, flange_width, web_thickness, k4=k4)
-    X = slenderness * math.sqrt(fy / 355.0) if Mpe != 0 else 0.0
+    X = slenderness * math.sqrt(fy / 355.0) if MR != 0 else 0.0
     lookup_factor = get_lookup_factor(X)
-    MR = (lookup_factor * Mpe * condition_factor) / (1.05 * 1.1)
-    logging.debug(f"Steel: fy={fy}, slenderness={slenderness}, X={X}, k4={k4}, Lookup Factor={lookup_factor}, MR={MR}")
-    return MR, slenderness, X
+    MD = (lookup_factor * MR * condition_factor) / (1.05 * 1.1)
+    logging.debug(f"Steel: fy={fy}, slenderness={slenderness}, X={X}, k4={k4}, Lookup Factor={lookup_factor}, MD={MD}")
+    return MD, slenderness, X
 
 
 def calculate_vehicle_loads(span_length, vehicle_type, impact_factor=1.0, wheel_dispersion="none", axle_mode="per beam"):
@@ -402,7 +402,12 @@ def calculate_applied_loads(span_length, loading_type, additional_loads, loaded_
 
 def calculate_beam_capacity(form_data, loads):
     material = form_data.get("material")
+
+    # --- DEBUG: log raw and parsed values ---
+    logging.debug("Raw condition_factor in form_data: %r", form_data.get("condition_factor"))
     condition_factor = get_float(form_data.get("condition_factor"), 1.0)
+    logging.debug("Parsed condition_factor: %s", condition_factor)
+
     span_length = get_float(form_data.get("span_length"))
     L_actual = get_float(form_data.get("effective_member_length"), span_length)
     k1 = get_float(form_data.get("k1"), 1.0)
@@ -426,8 +431,8 @@ def calculate_beam_capacity(form_data, loads):
         web_thickness = get_float(form_data.get("web_thickness"))
         web_depth = get_float(form_data.get("beam_depth"))
 
-        # Base section capacity (returns Mpe, shear)
-        Mpe, shear_capacity = calculate_steel_capacity(
+        # Base section capacity (returns MR, shear)
+        MR, shear_capacity = calculate_steel_capacity(
             steel_grade, flange_width, flange_thickness, web_thickness, web_depth, condition_factor
         )
 
@@ -450,20 +455,20 @@ def calculate_beam_capacity(form_data, loads):
 
         # BD37 capacity using k4
         try:
-            MR, slenderness, X = calculate_bd37_moment_capacity(
-                Mpe, effective_length, steel_grade,
+            MD, slenderness, X = calculate_bd37_moment_capacity(
+                MD, effective_length, steel_grade,
                 flange_width, flange_thickness, web_thickness, web_depth,
                 k4=k4
             )
-            moment_capacity = MR
+            moment_capacity = MD
         except Exception as e:
             logging.error("Error in BD37 capacity calculation: %s", e)
             slenderness, _, _, _ = calculate_slenderness(
                 effective_length, web_depth, flange_thickness, flange_width, web_thickness, k4=k4
             )
             fy_fallback = 230.0 if steel_grade.strip() == "S230" else (275.0 if steel_grade.strip() == "S275" else 355.0)
-            X = slenderness * math.sqrt(fy_fallback / 355.0) if Mpe != 0 else 0.0
-            moment_capacity = Mpe  # fallback to plastic
+            X = slenderness * math.sqrt(fy_fallback / 355.0) if MR != 0 else 0.0
+            moment_capacity = MR  # fallback to plastic
 
         # Breakdown text
         calculation_process += "Steel Beam Calculation Process:\n----------------------------------\n"
@@ -475,10 +480,10 @@ def calculate_beam_capacity(form_data, loads):
         fy = 230.0 if steel_grade.strip() == "S230" else (275.0 if steel_grade.strip() == "S275" else 355.0)
         calculation_process += f"Yield Strength, fy = {fy} N/mm²\n"
         calculation_process += f"k4 (minor-axis symmetry) = {k4:.3f}\n"
-        calculation_process += f"Mpe = (fy x Z_plastic)  = {Mpe:.3f} kNm\n"
+        calculation_process += f"MR = (fy x Z_plastic)  = {MR:.3f} kNm\n"
         calculation_process += f"Slenderness = {slenderness:.3f}, X = {X:.3f}\n"
         calculation_process += f"Lookup Factor = {get_lookup_factor(X):.3f}\n"
-        calculation_process += f"Adjusted Moment Capacity, MR = Lookup Factor x Mpe x condition factor / (1.05 x 1.1) = {moment_capacity:.3f} kNm\n"
+        calculation_process += f"Adjusted Moment Capacity, MD = Lookup Factor x MR x Condition Factor / (1.05 x 1.1) = {moment_capacity:.3f} kNm\n"
         calculation_process += "----------------------------------\n"
 
     elif material == "Concrete":
@@ -638,6 +643,11 @@ def home():
 @app.route("/calculate", methods=["POST"])
 def calculate():
     form_data = request.form.to_dict()
+
+    # --- DEBUG: see what the form actually sent ---
+    logging.debug("Form keys: %s", sorted(form_data.keys()))
+    logging.debug("Raw condition_factor from request: %r", request.form.get("condition_factor"))
+
     additional_loads = []
     load_desc_list = request.form.getlist("load_desc[]")
     load_value_list = request.form.getlist("load_value[]")
