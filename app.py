@@ -34,7 +34,7 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     fy = 230.0 if steel_grade == "S230" else (275.0 if steel_grade == "S275" else 355.0)
     overall_depth = web_depth + 2 * flange_thickness  # overall depth in mm
     Z_plastic = (flange_width * flange_thickness * (overall_depth - flange_thickness) +
-                 (web_thickness * (overall_depth - 2 * flange_thickness)**2) / 4) / 1e6  # in m³
+                 (web_thickness * (overall_depth - 2 * flange_thickness)**2) / 4) / 1e9  # in m³
     Mpe = (fy * Z_plastic * condition_factor)  # kNm
     shear_capacity = (fy * web_thickness * overall_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)  # kN
     logging.debug(f"Steel: overall_depth={overall_depth} mm, Z_plastic={Z_plastic:.6f} m³, Mpe={Mpe:.6f} kNm, shear={shear_capacity:.6f} kN")
