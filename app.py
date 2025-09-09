@@ -35,7 +35,7 @@ def calculate_steel_capacity(steel_grade, flange_width, flange_thickness, web_th
     overall_depth = web_depth + 2 * flange_thickness  # overall depth in mm
     Z_plastic = (flange_width * flange_thickness * (overall_depth - flange_thickness) +
                  (web_thickness * (overall_depth - 2 * flange_thickness)**2) / 4) # in mm³
-    Mpe = (fy * (Z_plastic/1e6) * condition_factor)  # kNm
+    Mpe = (fy * (Z_plastic/1e6))  # kNm
     shear_capacity = (fy * web_thickness * overall_depth * condition_factor) / (1.73 * 1.05 * 1.1 * 1000)  # kN
     logging.debug(f"Steel: overall_depth={overall_depth} mm, Z_plastic={Z_plastic:.6f} m³, Mpe={Mpe:.6f} kNm, shear={shear_capacity:.6f} kN")
     return Mpe, shear_capacity
@@ -263,7 +263,7 @@ def calculate_bd37_moment_capacity(Mpe, effective_length, steel_grade, flange_wi
     slenderness, F_param, v_value, r = calculate_slenderness(effective_length, web_depth, flange_thickness, flange_width, web_thickness, k4=k4)
     X = slenderness * math.sqrt(fy / 355.0) if Mpe != 0 else 0.0
     lookup_factor = get_lookup_factor(X)
-    MR = (lookup_factor * Mpe) / (1.05 * 1.1)
+    MR = (lookup_factor * Mpe * condition factor) / (1.05 * 1.1)
     logging.debug(f"Steel: fy={fy}, slenderness={slenderness}, X={X}, k4={k4}, Lookup Factor={lookup_factor}, MR={MR}")
     return MR, slenderness, X
 
@@ -475,10 +475,10 @@ def calculate_beam_capacity(form_data, loads):
         fy = 230.0 if steel_grade.strip() == "S230" else (275.0 if steel_grade.strip() == "S275" else 355.0)
         calculation_process += f"Yield Strength, fy = {fy} N/mm²\n"
         calculation_process += f"k4 (minor-axis symmetry) = {k4:.3f}\n"
-        calculation_process += f"Mpe = (fy x Z_plastic x condition factor)  = {Mpe:.3f} kNm\n"
+        calculation_process += f"Mpe = (fy x Z_plastic)  = {Mpe:.3f} kNm\n"
         calculation_process += f"Slenderness = {slenderness:.3f}, X = {X:.3f}\n"
         calculation_process += f"Lookup Factor = {get_lookup_factor(X):.3f}\n"
-        calculation_process += f"Adjusted Moment Capacity, MR = Lookup Factor x Mpe / (1.05 x 1.1) = {moment_capacity:.3f} kNm\n"
+        calculation_process += f"Adjusted Moment Capacity, MR = Lookup Factor x Mpe x condition factor / (1.05 x 1.1) = {moment_capacity:.3f} kNm\n"
         calculation_process += "----------------------------------\n"
 
     elif material == "Concrete":
